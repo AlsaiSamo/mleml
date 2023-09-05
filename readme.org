@@ -1,0 +1,7 @@
+#+title: MleML
+#+author: Alsai Samo (imikoy)
+
+* Introduction
+This is a work-in-progress library for processing music macro language (MML).
+I don't have enough time to give to this project, so it is seriously unfinished.
+Not all design choices are final.
