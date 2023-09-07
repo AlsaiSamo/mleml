@@ -15,9 +15,8 @@ pub mod platform {
 
 use dasp::frame::Stereo;
 use serde_json;
-use std::{
-    collections::HashSet, ffi::CString, hash::Hash, num::NonZeroU32, rc::Rc,
-};
+use std::{ffi::CString, hash::Hash, num::NonZeroU32, rc::Rc, mem::discriminant};
+use std::collections::HashSet;
 
 use crate::platform::CCCC;
 
@@ -76,45 +75,46 @@ type JsonValue = serde_json::Value;
 //TODO: decide what the config needs to look like
 //Array is good because of ordering
 //type ResConfig = Vec<JsonValue>;
-pub struct ResConfig(Vec<JsonValue>);
+type ResConfig = Vec<JsonValue>;
 
-impl ResConfig {
-    pub fn try_new(value: JsonValue) -> Option<Self>{
-        //TODO: to_vec() produces vec<u8>. I need to use as_array, which returns
-        // references. I need to rewrite the code to rely on references.
-        //value.as_array().and_then(|v| Some(ResConfig {0: v.to_vec()}))
-        // match value.is_array() {
-        //     True => Some(ResConfig{0: value.as_array()}),
-        //     False => None
-        // }
-        todo!()
-    }
-}
-
-pub struct ConfigBuilder<'a> {
+pub struct ConfigBuilder {
     //Used to validate the passed types
-    schema: &'a JsonValue,
-    config: JsonValue,
+    //TODO: <'a> reference
+    schema: Vec<JsonValue>,
+    config: Vec<JsonValue>,
 }
 
 //Typestate for ConfigBuilder
-pub enum BuilderState<'a> {
-    Builder(ConfigBuilder<'a>),
+pub enum BuilderState {
+    Builder(ConfigBuilder),
     Config(ResConfig),
 }
 
 //TODO: better error type
-impl<'a> ConfigBuilder<'a> {
-    pub fn append(&self, value: JsonValue) -> Result<BuilderState<'a>, String> {
-        //let index = self.config.as_object().ok_or("Config is not an object")?;
-        // let index = self
-        //     //TODO: I will not ned to write this here if I were to change ResConfig
-        //     // to a vector of values
-        //     .config
-        //     .as_array()
-        //     .ok_or("Config is not an object")?
-        //     .len();
-        todo!()
+impl ConfigBuilder {
+    pub fn new(schema: JsonValue) -> Result<Self, &'static str> {
+        match schema {
+            serde_json::Value::Array(vals) => Ok(ConfigBuilder {
+                schema: vals,
+                config: vec!(),
+            }),
+            _ => Err("Config schema is not an array"),
+        }
+    }
+    pub fn append(mut self, value: JsonValue) -> Result<BuilderState, String> {
+        let position = self.config.len();
+        let current_type = discriminant(&self.schema[position]);
+        let given_type = discriminant(&value);
+        if current_type != given_type {
+            return Err(format!("Type mismatch at config value {position}"))
+        };
+        self.config.push(value);
+        if position == self.schema.len() {
+            Ok(BuilderState::Config(self.config))
+        }
+        else {
+            Ok(BuilderState::Builder(self))
+        }
     }
 }
 
