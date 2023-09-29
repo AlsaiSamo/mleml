@@ -13,124 +13,13 @@ pub mod platform {
     pub const MAX_CHANNELS: u32 = 256;
 }
 
-use dasp::frame::Stereo;
-use serde_json;
-use std::{ffi::CString, hash::Hash, num::NonZeroU32, rc::Rc, mem::discriminant};
 use std::collections::HashSet;
-
-use crate::platform::CCCC;
-
-//Ticks
-type Length = NonZeroU32;
-//100 cents, or 1/12th of an octave
-type Pitch = NonZeroU32;
-type Octave = u32;
-type Volume = u32;
-type ModName = String;
-
-//Length in ticks, pitch in semitones.
-//Unspecified length means that the channel's default length will be used.
-//Unspecified pitch means that the note is actually a rest.
-#[derive(Clone, Copy)]
-#[repr(C)]
-pub struct Note {
-    pub len: Option<Length>,
-    pub pitch: Option<Pitch>,
-    pub cents: i32,
-    pub natural: bool,
-    //TODO: velocity?
-}
-
-//Length in seconds, pitch in Hz, volume is in percentages
-#[repr(C)]
-pub struct ReadyNote {
-    pub len: f32,
-    pub pitch: Option<f32>,
-    pub volume: f32,
-}
-
-//A slice of PCM data
-#[repr(C)]
-pub struct Sound {
-    pub data: Box<[Stereo<f32>]>,
-    sampling_rate: u32,
-}
-
-impl Sound {
-    pub fn new(rate: u32) -> Sound {
-        Sound {
-            data: Box::new([]),
-            sampling_rate: rate,
-        }
-    }
-    pub fn sampling_rate(&self) -> u32 {
-        self.sampling_rate
-    }
-}
-
-//TODO: serde_json::Value is not Hash. Implement it by hashing string
-// representation of JSON.
-type JsonValue = serde_json::Value;
-
-//TODO: decide what the config needs to look like
-//Array is good because of ordering
-//type ResConfig = Vec<JsonValue>;
-type ResConfig = Vec<JsonValue>;
-
-pub struct ConfigBuilder {
-    //Used to validate the passed types
-    //TODO: <'a> reference
-    schema: Vec<JsonValue>,
-    config: Vec<JsonValue>,
-}
-
-//Typestate for ConfigBuilder
-pub enum BuilderState {
-    Builder(ConfigBuilder),
-    Config(ResConfig),
-}
-
-//TODO: better error type
-impl ConfigBuilder {
-    pub fn new(schema: JsonValue) -> Result<Self, &'static str> {
-        match schema {
-            serde_json::Value::Array(vals) => Ok(ConfigBuilder {
-                schema: vals,
-                config: vec!(),
-            }),
-            _ => Err("Config schema is not an array"),
-        }
-    }
-    pub fn append(mut self, value: JsonValue) -> Result<BuilderState, String> {
-        let position = self.config.len();
-        let current_type = discriminant(&self.schema[position]);
-        let given_type = discriminant(&value);
-        if current_type != given_type {
-            return Err(format!("Type mismatch at config value {position}"))
-        };
-        self.config.push(value);
-        if position == self.schema.len() {
-            Ok(BuilderState::Config(self.config))
-        }
-        else {
-            Ok(BuilderState::Builder(self))
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct ResState(JsonValue);
-
-impl ResState {
-    pub fn new(state: JsonValue) -> Self {
-        ResState(state)
-    }
-}
+pub use std::{hash::Hash, num::NonZeroU8, rc::Rc};
 
 pub trait SetRc<T> {
     //Removes all solitary Rc's (strong count is 1) as they are not used anywhere
     fn trim(&mut self);
-    fn wrap_and_return(&mut self, value: T) -> Rc<T>;
+    fn wrap(&mut self, value: T) -> Rc<T>;
 }
 
 impl<T: Eq + Hash> SetRc<T> for HashSet<Rc<T>> {
@@ -138,229 +27,426 @@ impl<T: Eq + Hash> SetRc<T> for HashSet<Rc<T>> {
         self.retain(|r| Rc::strong_count(r) == 1);
     }
 
-    fn wrap_and_return(&mut self, value: T) -> Rc<T> {
+    fn wrap(&mut self, value: T) -> Rc<T> {
         let new = Rc::new(value);
-        self.get_or_insert(new).clone()
+        self.get_or_insert_owned(&new).clone()
     }
 }
 
-//A resource
-pub trait Resource {
-    fn name(&self) -> String;
-    fn id(&self) -> String;
-    fn check_config(&self, conf: ResConfig) -> Result<(), String>;
-    fn check_state(&self, state: ResState) -> Result<(), String>;
-    fn get_config(&self) -> JsonValue;
-    fn get_state(&self) -> JsonValue;
-    fn get_config_schema(&self) -> JsonValue;
-}
+pub mod resource {
+    use crate::types::{Note, Sound};
+    use core::fmt;
+    use serde::{Deserialize, Serialize};
+    use serde_json::{json, to_vec};
+    use std::{
+        borrow::Cow,
+        hash::{Hash, Hasher},
+        mem::{discriminant, Discriminant},
+        rc::Rc,
+    };
 
-//Note -> Note
-pub trait NoteMod: Resource {
-    fn apply(&self, note: Note) -> Result<Note, String>;
-}
-//Sound -> Sound
-pub trait SoundMod: Resource {
-    fn apply(&self, sound: Sound) -> Result<Sound, String>;
-}
-//Note -> Sound
-pub trait Instrument: Resource {
-    fn apply(&self, note: ReadyNote) -> Result<Sound, String>;
-}
+    type JsonValue = serde_json::Value;
+    #[derive(Clone, Serialize, Deserialize)]
+    //Contains a flat array
+    pub struct JsonArray(JsonValue);
 
-//NoteMod that is external
-pub struct ExternNoteMod {
-    name: String,
-    id: String,
-    //Second and third argument are created by converting JSON into something else
-    //TODO: return something that is representable in C
-    //TODO: strings need to be repr(C). These are not..?
-    apply: extern "C" fn(Note, CString, CString) -> Result<(Note, CString), CString>,
-}
+    impl JsonArray {
+        fn new() -> Self {
+            Self { 0: json!([]) }
+        }
+        fn as_slice(&self) -> &[JsonValue] {
+            self.0.as_array().unwrap().as_slice()
+        }
+        //Maintains array's flatness
+        fn push(&mut self, item: JsonValue) -> Option<()> {
+            match item.is_array() | item.is_object() {
+                True => None,
+                _ => {
+                    self.0.as_array_mut().unwrap().push(item);
+                    return Some(());
+                }
+            }
+        }
+    }
 
-impl NoteMod for ExternNoteMod {
-    fn apply(&self, note: Note) -> Result<Note, String> {
-        todo!();
+    impl Hash for JsonArray {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            to_vec(self.as_slice()).unwrap().hash(state);
+        }
+    }
+
+    type ResConfig = JsonArray;
+
+    enum ConfigBuilderError {
+        BadSchema,
+        TypeMismatch(usize, Discriminant<JsonValue>, Discriminant<JsonValue>),
+    }
+
+    impl fmt::Display for ConfigBuilderError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::BadSchema => write!(f, "Schema is not a flat array"),
+                Self::TypeMismatch(l, e, g) => {
+                    write!(f, "Type mismatch at {l}: expected {:?}, got {:?}", e, g)
+                }
+            }
+        }
+    }
+
+    pub struct ConfigBuilder<'a> {
+        schema: &'a ResConfig,
+        config: ResConfig,
+    }
+
+    pub enum BuilderState<'a> {
+        Builder(ConfigBuilder<'a>),
+        Config(ResConfig),
+    }
+
+    impl<'a> BuilderState<'a> {
+        pub fn new(schema: &'a ResConfig) -> BuilderState {
+            if schema.as_slice().len() == 0 {
+                return BuilderState::Config(ResConfig::new());
+            } else {
+                return BuilderState::Builder(ConfigBuilder {
+                    schema,
+                    config: ResConfig::new(),
+                });
+            }
+        }
+        //Appends items from the iterator, until a wrong one is found,
+        //or the iterator ends, or the config is complete. Count of taken elements is
+        //returned.
+        //TODO: verify that this is a good approach
+        pub fn inject<I>(&mut self, values: I) -> Result<usize, ConfigBuilderError>
+        where
+            I: IntoIterator<Item = JsonValue>,
+        {
+            let mut values = values.into_iter();
+            let mut count = 0;
+            while let BuilderState::Builder(build) = self {
+                let val = values.next();
+                match val.is_none() {
+                    true => return Ok(count),
+                    false => {
+                        count += 1;
+                        build.append(val.unwrap())?;
+                    }
+                }
+            }
+            return Ok(count);
+        }
+    }
+
+    impl<'a> ConfigBuilder<'a> {
+        pub fn append(mut self, value: JsonValue) -> Result<BuilderState<'a>, ConfigBuilderError> {
+            let position = self.config.as_slice().len();
+            let current_type = discriminant(&self.schema.as_slice()[position]);
+            let given_type = discriminant(&value);
+            if current_type != given_type {
+                return Err(ConfigBuilderError::TypeMismatch(
+                    position + 1,
+                    current_type,
+                    given_type,
+                ));
+            };
+            self.config
+                .push(value)
+                .ok_or_else(|| ConfigBuilderError::BadSchema)?;
+            if position == self.schema.as_slice().len() {
+                Ok(BuilderState::Config(self.config))
+            } else {
+                Ok(BuilderState::Builder(self))
+            }
+        }
+    }
+
+    pub struct ResState(Rc<[u8]>);
+
+    pub enum ConfigError {
+        BadValue(u32, JsonValue, JsonValue),
+        BadLength(u32, u32),
+    }
+
+    impl fmt::Display for ConfigError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::BadValue(l, e, g) => {
+                    write!(f, "Type mismatch at {l}: expected {:?}, got {:?}", e, g)
+                }
+                Self::BadLength(e, g) => {
+                    write!(f, "Length mismatch: expected {}, got {}", e, g)
+                }
+            }
+        }
+    }
+
+    //TODO: hash resource based on its id
+    //A (possibly dynamically loaded) resource (a library that provides a function)
+    pub trait Resource<'name> {
+        //Name of the resource may be changed, for example for user interaction
+        fn name(&self) -> Cow<'name, str>;
+        //Ask the resource to change its name
+        fn set_name(&mut self, new: String);
+        //ID of a resource is unique and cannot be changed
+        fn id(&self) -> &str;
+        fn check_config(&self, conf: ResConfig) -> Result<(), ConfigError>;
+        //We cannot look into ResState so we can only check that it is correct
+        fn check_state(&self, state: ResState) -> Option<()>;
+        fn get_config_schema(&self) -> &ResConfig;
+    }
+
+    pub trait Mod<'msg, I, O>: Resource<'msg> {
+        fn apply(&self, input: I, conf: ResConfig, state: ResState) -> Result<O, Cow<'msg, str>>;
+    }
+
+    //Return type for loadable resources
+    #[repr(C)]
+    struct ResReturn<T: Sized> {
+        is_ok: bool,
+        item: T,
+        //If ok, it is state. If not, it is error.
+        msg_len: u32,
+        msg: *const i8,
+    }
+
+    struct ExtResource<'name, I, O> {
+        name: Cow<'name, str>,
+        id: String,
+        apply: extern "C" fn(I, conf: *const i8, state: *const u8) -> ResReturn<O>,
+        dealloc: extern "C" fn(),
+    }
+
+    pub type ExtNoteMod<'name> = ExtResource<'name, Note, Note>;
+    pub type ExtSoundMod<'name> = ExtResource<'name, Sound, Sound>;
+    pub type ExtInstrument<'name> = ExtResource<'name, Note, Sound>;
+
+    impl<'msg> Mod<'msg, Note, Note> for ExtNoteMod<'msg> {
+        fn apply(
+            &self,
+            input: Note,
+            conf: ResConfig,
+            state: ResState,
+        ) -> Result<Note, Cow<'msg, str>> {
+            todo!()
+        }
+    }
+
+    impl<'name> Resource<'name> for ExtNoteMod<'name> {
+        fn name(&self) -> Cow<'name, str> {
+            todo!()
+        }
+
+        fn set_name(&mut self, new: String) {
+            todo!()
+        }
+
+        fn id(&self) -> &str {
+            todo!()
+        }
+
+        fn check_config(&self, conf: ResConfig) -> Result<(), ConfigError> {
+            todo!()
+        }
+
+        fn check_state(&self, state: ResState) -> Option<()> {
+            todo!()
+        }
+
+        fn get_config_schema(&self) -> &ResConfig {
+            todo!()
+        }
+    }
+
+    impl<'msg> Mod<'msg, Sound, Sound> for ExtSoundMod<'msg> {
+        fn apply(
+            &self,
+            input: Sound,
+            conf: ResConfig,
+            state: ResState,
+        ) -> Result<Sound, Cow<'msg, str>> {
+            todo!()
+        }
+    }
+
+    impl<'name> Resource<'name> for ExtSoundMod<'name> {
+        fn name(&self) -> Cow<'name, str> {
+            todo!()
+        }
+
+        fn set_name(&mut self, new: String) {
+            todo!()
+        }
+
+        fn id(&self) -> &str {
+            todo!()
+        }
+
+        fn check_config(&self, conf: ResConfig) -> Result<(), ConfigError> {
+            todo!()
+        }
+
+        fn check_state(&self, state: ResState) -> Option<()> {
+            todo!()
+        }
+
+        fn get_config_schema(&self) -> &ResConfig {
+            todo!()
+        }
+    }
+
+    impl<'msg> Mod<'msg, Note, Sound> for ExtInstrument<'msg> {
+        fn apply(
+            &self,
+            input: Note,
+            conf: ResConfig,
+            state: ResState,
+        ) -> Result<Sound, Cow<'msg, str>> {
+            todo!()
+        }
+    }
+
+    impl<'name> Resource<'name> for ExtInstrument<'name> {
+        fn name(&self) -> Cow<'name, str> {
+            todo!()
+        }
+
+        fn set_name(&mut self, new: String) {
+            todo!()
+        }
+
+        fn id(&self) -> &str {
+            todo!()
+        }
+
+        fn check_config(&self, conf: ResConfig) -> Result<(), ConfigError> {
+            todo!()
+        }
+
+        fn check_state(&self, state: ResState) -> Option<()> {
+            todo!()
+        }
+
+        fn get_config_schema(&self) -> &ResConfig {
+            todo!()
+        }
     }
 }
 
-impl Resource for ExternNoteMod {
-    //TODO: give reference to string?
-    fn name(&self) -> String {
-        self.name.to_owned()
+pub mod types {
+    use dasp::frame::Stereo;
+    use std::num::NonZeroU8;
+
+    //Length in ticks, pitch in semitones.
+    //Unspecified length means that the channel's default length will be used.
+    //Unspecified pitch means that the note is actually a rest.
+    #[derive(Clone, Copy)]
+    #[repr(C)]
+    pub struct Note {
+        pub len: Option<NonZeroU8>,
+        pub pitch: Option<NonZeroU8>,
+        pub cents: i8,
+        pub natural: bool,
+        //Equilibrium is 128, or u8::EQUIIBRIUM (from dasp)
+        pub velocity: u8,
     }
 
-    fn id(&self) -> String {
-        self.id.to_owned()
+    //Length in seconds, pitch in Hz, velocity and pitch=None retain meaning from Note
+    #[repr(C)]
+    pub struct ReadyNote {
+        pub len: f32,
+        pub pitch: Option<f32>,
+        pub velocity: u8,
     }
 
-    fn check_config(&self, conf: ResConfig) -> Result<(), String> {
-        todo!()
+    //An immutable slice of PCM data.
+    #[repr(C)]
+    pub struct Sound {
+        sampling_rate: u32,
+        data: Box<[Stereo<f32>]>,
     }
 
-    fn check_state(&self, state: ResState) -> Result<(), String> {
-        todo!()
-    }
-
-    fn get_config(&self) -> JsonValue {
-        todo!()
-    }
-
-    fn get_state(&self) -> JsonValue {
-        todo!()
-    }
-
-    fn get_config_schema(&self) -> JsonValue {
-        todo!()
-    }
-}
-
-pub struct ExternSoundMod {
-    name: String,
-    id: String,
-    //Second and third argument are created by converting JSON into something else
-    apply: extern "C" fn(Sound, String, String) -> Result<(Stereo<f32>, String), String>,
-}
-
-impl SoundMod for ExternSoundMod {
-    fn apply(&self, note: Sound) -> Result<Sound, String> {
-        todo!();
-    }
-}
-
-impl Resource for ExternSoundMod {
-    //TODO: give reference to string?
-    fn name(&self) -> String {
-        self.name.to_owned()
-    }
-
-    fn id(&self) -> String {
-        self.id.to_owned()
-    }
-
-    fn check_config(&self, conf: ResConfig) -> Result<(), String> {
-        todo!()
-    }
-
-    fn check_state(&self, state: ResState) -> Result<(), String> {
-        todo!()
-    }
-
-    fn get_config(&self) -> JsonValue {
-        todo!()
-    }
-
-    fn get_state(&self) -> JsonValue {
-        todo!()
-    }
-
-    fn get_config_schema(&self) -> JsonValue {
-        todo!()
+    impl Sound {
+        pub fn new(data: Box<[Stereo<f32>]>, sampling_rate: u32) -> Sound {
+            Sound {
+                data,
+                sampling_rate,
+            }
+        }
+        pub fn sampling_rate(&self) -> u32 {
+            self.sampling_rate
+        }
+        pub fn data(&self) -> &[Stereo<f32>] {
+            self.data.as_ref()
+        }
     }
 }
 
-pub struct ExternInstrument {
-    name: String,
-    id: String,
-    //Second and third argument are created by converting JSON into something else
-    apply: extern "C" fn(ReadyNote, String, String) -> Result<(Sound, String), String>,
-}
+pub mod channel {
+    use std::rc::Rc;
 
-impl Instrument for ExternInstrument {
-    fn apply(&self, note: ReadyNote) -> Result<Sound, String> {
-        todo!();
+    use crate::{resource::Mod, types::{Note, Sound}};
+
+    //State of the channel at the start of a note/rest
+    pub struct ChannelState {
+        //Length of one tick in seconds
+        tick_length: f32,
+        //Platform-defined volume setting
+        volume: u8,
+        note: Note,
+        octave: u8,
+        length: u8,
+        velocity: u8,
+        //TODO: review if this is a good approach
+        instrument: Rc<dyn for<'a> Mod<'a, Note, Sound>>,
+        note_modifiers: Vec<Rc<dyn for<'a> Mod<'a, Note, Note>>>,
+        sound_modifiers: Vec<Rc<dyn for<'a> Mod<'a, Sound, Sound>>>,
+        //TODO: state and config information for the resources
+    }
+
+    impl ChannelState {
+        pub fn play(&self) -> Result<Sound, String> {
+            //TODO: pass in config and state of the mods
+            let note = self
+                .note_modifiers
+                .iter()
+                .fold(self.note, |a, f| f.apply(a).unwrap());
+            let note = ReadyNote {
+                len: self.tick_length * (note.len.unwrap_or(self.length)).get() as f32,
+                //TODO:
+                pitch: note.pitch.and_then(|_| {
+                    Some(
+                        CCCC * 2.0_f32.powf(
+                            (note.pitch.unwrap().get() as f32 + note.cents as f32 / 100.0) / 12.0
+                                + self.octave as f32,
+                        ),
+                    )
+                }),
+                volume: self.volume as f32,
+            };
+            //Apply everything
+            //TODO: pass in state, config, and volume
+            let mut sound = self.instrument.apply(note)?;
+            sound = self
+                .sound_modifiers
+                .iter()
+                .fold(sound, |a, f| f.apply(a).unwrap());
+            //TODO: apply platform's sound mod
+            Ok(sound)
+        }
+    }
+
+    pub struct TrackState {
+        //Platform-defined ticks since start
+        tick: usize,
+        channels: Vec<ChannelState>,
+        //TODO: state and config for platform code
+    }
+
+    impl TrackState {
+        //TODO: play(), new(), etc.
     }
 }
-
-impl Resource for ExternInstrument {
-    //TODO: give reference to string?
-    fn name(&self) -> String {
-        self.name.to_owned()
-    }
-
-    fn id(&self) -> String {
-        self.id.to_owned()
-    }
-
-    fn check_config(&self, conf: ResConfig) -> Result<(), String> {
-        todo!()
-    }
-
-    fn check_state(&self, state: ResState) -> Result<(), String> {
-        todo!()
-    }
-
-    fn get_config(&self) -> JsonValue {
-        todo!()
-    }
-
-    fn get_state(&self) -> JsonValue {
-        todo!()
-    }
-
-    fn get_config_schema(&self) -> JsonValue {
-        todo!()
-    }
-}
-
-//State of the channel at the start of a note/rest
-pub struct ChannelState {
-    //Length of one tick in seconds
-    tick_length: f32,
-    //Platform-defined volume setting
-    volume: Volume,
-    note: Note,
-    octave: Octave,
-    length: Length,
-    instrument: Rc<dyn Instrument>,
-    note_modifiers: Vec<Rc<dyn NoteMod>>,
-    sound_modifiers: Vec<Rc<dyn SoundMod>>,
-    //TODO: state and config information for the resources
-}
-
-impl ChannelState {
-    pub fn play(&self) -> Result<Sound, String> {
-        //TODO: pass in config and state of the mods
-        let note = self
-            .note_modifiers
-            .iter()
-            .fold(self.note, |a, f| f.apply(a).unwrap());
-        let note = ReadyNote {
-            len: self.tick_length * (note.len.unwrap_or(self.length)).get() as f32,
-            //TODO:
-            pitch: note.pitch.and_then(|_| {
-                Some(
-                    CCCC * 2.0_f32.powf(
-                        (note.pitch.unwrap().get() as f32 + note.cents as f32 / 100.0) / 12.0
-                            + self.octave as f32,
-                    ),
-                )
-            }),
-            volume: self.volume as f32,
-        };
-        //Apply everything
-        //TODO: pass in state, config, and volume
-        let mut sound = self.instrument.apply(note)?;
-        sound = self
-            .sound_modifiers
-            .iter()
-            .fold(sound, |a, f| f.apply(a).unwrap());
-        //TODO: apply platform's sound mod
-        Ok(sound)
-    }
-}
-
-pub struct TrackState {
-    //Platform-defined ticks since start
-    tick: usize,
-    channels: Vec<ChannelState>,
-    //TODO: state and config for platform code
-}
-
-impl TrackState {
-    //TODO: play(), new(), etc.
-}
-
 //All of the commands that can be executed on a channel
 pub enum Instruction {
     //Play or not play a new sound

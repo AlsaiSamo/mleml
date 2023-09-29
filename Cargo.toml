@@ -13,3 +13,7 @@ serde_json = "1.0"
 [dependencies.dasp]
 version = "0.11.0"
 features = ["slice", "slice-boxed", "signal", "signal-boxed"]
+
+[dependencies.serde]
+version = "1.0"
+features = ["derive"]

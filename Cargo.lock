@@ -162,6 +162,7 @@ version = "0.1.0"
 dependencies = [
  "dasp",
  "dlopen2",
+ "serde",
  "serde_json",
 ]
 
