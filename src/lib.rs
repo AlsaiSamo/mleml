@@ -34,7 +34,7 @@ impl<T: Eq + Hash> SetRc<T> for HashSet<Rc<T>> {
 }
 
 pub mod resource {
-    use crate::types::{Note, Sound, ResSound};
+    use crate::types::{Note, ResSound, Sound};
     use core::fmt;
     use serde::{Deserialize, Serialize};
     use serde_json::{json, to_vec};
@@ -181,10 +181,8 @@ pub mod resource {
         }
     }
 
-    //TODO: hashmap for naming
-    //TODO: hash resource based on its id
     //A (possibly dynamically loaded) resource (a library that provides a function)
-    pub trait Resource {
+    pub trait Resource: Hash {
         //Constant name defined in the resource
         fn orig_name(&self) -> Option<&str>;
         //ID of a resource is unique and cannot be changed
@@ -209,115 +207,55 @@ pub mod resource {
         msg: *const i8,
     }
 
+    #[repr(C)]
+    struct NoItem([u8; 0]);
+
     struct ExtResource<I, O> {
         id: String,
         apply: extern "C" fn(I, conf: *const i8, state: *const u8) -> ResReturn<O>,
         //It is fine to deallocate the message
         dealloc: extern "C" fn(),
+        orig_name: extern "C" fn() -> *const i8,
+        check_config: extern "C" fn(conf: *const i8) -> ResReturn<NoItem>,
+    }
+
+    impl<I, O> Hash for ExtResource<I, O> {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            self.id.hash(state);
+        }
+    }
+
+    impl<I, O> Resource for ExtResource<I, O> {
+        fn orig_name(&self) -> Option<&str> {
+            todo!()
+        }
+
+        fn id(&self) -> &str {
+            return self.id.as_str()
+        }
+
+        fn check_config(&self, conf: ResConfig) -> Result<(), ConfigError> {
+            todo!()
+        }
+
+        fn check_state(&self, state: ResState) -> Option<()> {
+            todo!()
+        }
+
+        fn get_config_schema(&self) -> &ResConfig {
+            todo!()
+        }
+    }
+
+    impl<'msg, I, O> Mod<'msg, I, O> for ExtResource<I, O> {
+        fn apply(&self, input: I, conf: ResConfig, state: ResState) -> Result<O, Cow<'msg, str>> {
+            todo!()
+        }
     }
 
     pub type ExtNoteMod = ExtResource<Note, Note>;
     pub type ExtSoundMod = ExtResource<ResSound, ResSound>;
     pub type ExtInstrument = ExtResource<Note, ResSound>;
-
-    impl<'msg> Mod<'msg, Note, Note> for ExtNoteMod {
-        fn apply(
-            &self,
-            input: Note,
-            conf: ResConfig,
-            state: ResState,
-        ) -> Result<Note, Cow<'msg, str>> {
-            todo!()
-        }
-    }
-
-    impl Resource for ExtNoteMod {
-        fn orig_name(&self) -> Option<&str> {
-            todo!()
-        }
-
-        fn id(&self) -> &str {
-            todo!()
-        }
-
-        fn check_config(&self, conf: ResConfig) -> Result<(), ConfigError> {
-            todo!()
-        }
-
-        fn check_state(&self, state: ResState) -> Option<()> {
-            todo!()
-        }
-
-        fn get_config_schema(&self) -> &ResConfig {
-            todo!()
-        }
-    }
-
-    impl<'msg> Mod<'msg, ResSound, ResSound> for ExtSoundMod {
-        fn apply(
-            &self,
-            input: ResSound,
-            conf: ResConfig,
-            state: ResState,
-        ) -> Result<ResSound, Cow<'msg, str>> {
-            todo!()
-        }
-    }
-
-    impl Resource for ExtSoundMod {
-        fn orig_name(&self) -> Option<&str> {
-            todo!()
-        }
-
-        fn id(&self) -> &str {
-            todo!()
-        }
-
-        fn check_config(&self, conf: ResConfig) -> Result<(), ConfigError> {
-            todo!()
-        }
-
-        fn check_state(&self, state: ResState) -> Option<()> {
-            todo!()
-        }
-
-        fn get_config_schema(&self) -> &ResConfig {
-            todo!()
-        }
-    }
-
-    impl<'msg> Mod<'msg, Note, ResSound> for ExtInstrument {
-        fn apply(
-            &self,
-            input: Note,
-            conf: ResConfig,
-            state: ResState,
-        ) -> Result<ResSound, Cow<'msg, str>> {
-            todo!()
-        }
-    }
-
-    impl Resource for ExtInstrument {
-        fn orig_name(&self) -> Option<&str> {
-            todo!()
-        }
-
-        fn id(&self) -> &str {
-            todo!()
-        }
-
-        fn check_config(&self, conf: ResConfig) -> Result<(), ConfigError> {
-            todo!()
-        }
-
-        fn check_state(&self, state: ResState) -> Option<()> {
-            todo!()
-        }
-
-        fn get_config_schema(&self) -> &ResConfig {
-            todo!()
-        }
-    }
 }
 
 pub mod types {
@@ -355,7 +293,7 @@ pub mod types {
     pub struct ResSound {
         sampling_rate: u32,
         data_len: u32,
-        data: *const Stereo<f32>
+        data: *const Stereo<f32>,
     }
 
     impl Sound {
@@ -375,9 +313,13 @@ pub mod types {
 }
 
 pub mod channel {
+    use crate::platform::CCCC;
+    use crate::types::ReadyNote;
+    use crate::{
+        resource::Mod,
+        types::{Note, Sound},
+    };
     use std::rc::Rc;
-
-    use crate::{resource::Mod, types::{Note, Sound}};
 
     //State of the channel at the start of a note/rest
     pub struct ChannelState {
