@@ -34,7 +34,7 @@ impl<T: Eq + Hash> SetRc<T> for HashSet<Rc<T>> {
 }
 
 pub mod resource {
-    use crate::types::{Note, Sound};
+    use crate::types::{Note, Sound, ResSound};
     use core::fmt;
     use serde::{Deserialize, Serialize};
     use serde_json::{json, to_vec};
@@ -203,7 +203,7 @@ pub mod resource {
     #[repr(C)]
     struct ResReturn<T: Sized> {
         is_ok: bool,
-        item: T,
+        item: *const T,
         //If ok, it is state. If not, it is error.
         msg_len: u32,
         msg: *const i8,
@@ -212,12 +212,13 @@ pub mod resource {
     struct ExtResource<I, O> {
         id: String,
         apply: extern "C" fn(I, conf: *const i8, state: *const u8) -> ResReturn<O>,
+        //It is fine to deallocate the message
         dealloc: extern "C" fn(),
     }
 
     pub type ExtNoteMod = ExtResource<Note, Note>;
-    pub type ExtSoundMod = ExtResource<Sound, Sound>;
-    pub type ExtInstrument = ExtResource<Note, Sound>;
+    pub type ExtSoundMod = ExtResource<ResSound, ResSound>;
+    pub type ExtInstrument = ExtResource<Note, ResSound>;
 
     impl<'msg> Mod<'msg, Note, Note> for ExtNoteMod {
         fn apply(
@@ -252,13 +253,13 @@ pub mod resource {
         }
     }
 
-    impl<'msg> Mod<'msg, Sound, Sound> for ExtSoundMod {
+    impl<'msg> Mod<'msg, ResSound, ResSound> for ExtSoundMod {
         fn apply(
             &self,
-            input: Sound,
+            input: ResSound,
             conf: ResConfig,
             state: ResState,
-        ) -> Result<Sound, Cow<'msg, str>> {
+        ) -> Result<ResSound, Cow<'msg, str>> {
             todo!()
         }
     }
@@ -285,13 +286,13 @@ pub mod resource {
         }
     }
 
-    impl<'msg> Mod<'msg, Note, Sound> for ExtInstrument {
+    impl<'msg> Mod<'msg, Note, ResSound> for ExtInstrument {
         fn apply(
             &self,
             input: Note,
             conf: ResConfig,
             state: ResState,
-        ) -> Result<Sound, Cow<'msg, str>> {
+        ) -> Result<ResSound, Cow<'msg, str>> {
             todo!()
         }
     }
@@ -338,7 +339,6 @@ pub mod types {
     }
 
     //Length in seconds, pitch in Hz, velocity and pitch=None retain meaning from Note
-    #[repr(C)]
     pub struct ReadyNote {
         pub len: f32,
         pub pitch: Option<f32>,
@@ -346,10 +346,16 @@ pub mod types {
     }
 
     //An immutable slice of PCM data.
-    #[repr(C)]
     pub struct Sound {
         sampling_rate: u32,
         data: Box<[Stereo<f32>]>,
+    }
+
+    #[repr(C)]
+    pub struct ResSound {
+        sampling_rate: u32,
+        data_len: u32,
+        data: *const Stereo<f32>
     }
 
     impl Sound {
@@ -385,10 +391,10 @@ pub mod channel {
         velocity: u8,
         //TODO: if we stick mods into Rc, we cannot change their name as a Resource.
         //So the name has to be split away.
-        instrument: Rc<dyn for<'a> Mod<'a, Note, Sound>>,
+        instrument: Rc<dyn for<'msg> Mod<'msg, Note, Sound>>,
         //TODO: replace with Cow<[Rc<Mod]>
-        note_modifiers: Vec<Rc<dyn for<'a> Mod<'a, Note, Note>>>,
-        sound_modifiers: Vec<Rc<dyn for<'a> Mod<'a, Sound, Sound>>>,
+        note_modifiers: Vec<Rc<dyn for<'msg> Mod<'msg, Note, Note>>>,
+        sound_modifiers: Vec<Rc<dyn for<'msg> Mod<'msg, Sound, Sound>>>,
         //TODO: state and config information for the resources
     }
 
