@@ -181,13 +181,12 @@ pub mod resource {
         }
     }
 
+    //TODO: hashmap for naming
     //TODO: hash resource based on its id
     //A (possibly dynamically loaded) resource (a library that provides a function)
-    pub trait Resource<'name> {
-        //Name of the resource may be changed, for example for user interaction
-        fn name(&self) -> Cow<'name, str>;
-        //Ask the resource to change its name
-        fn set_name(&mut self, new: String);
+    pub trait Resource {
+        //Constant name defined in the resource
+        fn orig_name(&self) -> Option<&str>;
         //ID of a resource is unique and cannot be changed
         fn id(&self) -> &str;
         fn check_config(&self, conf: ResConfig) -> Result<(), ConfigError>;
@@ -196,7 +195,7 @@ pub mod resource {
         fn get_config_schema(&self) -> &ResConfig;
     }
 
-    pub trait Mod<'msg, I, O>: Resource<'msg> {
+    pub trait Mod<'msg, I, O>: Resource {
         fn apply(&self, input: I, conf: ResConfig, state: ResState) -> Result<O, Cow<'msg, str>>;
     }
 
@@ -210,18 +209,17 @@ pub mod resource {
         msg: *const i8,
     }
 
-    struct ExtResource<'name, I, O> {
-        name: Cow<'name, str>,
+    struct ExtResource<I, O> {
         id: String,
         apply: extern "C" fn(I, conf: *const i8, state: *const u8) -> ResReturn<O>,
         dealloc: extern "C" fn(),
     }
 
-    pub type ExtNoteMod<'name> = ExtResource<'name, Note, Note>;
-    pub type ExtSoundMod<'name> = ExtResource<'name, Sound, Sound>;
-    pub type ExtInstrument<'name> = ExtResource<'name, Note, Sound>;
+    pub type ExtNoteMod = ExtResource<Note, Note>;
+    pub type ExtSoundMod = ExtResource<Sound, Sound>;
+    pub type ExtInstrument = ExtResource<Note, Sound>;
 
-    impl<'msg> Mod<'msg, Note, Note> for ExtNoteMod<'msg> {
+    impl<'msg> Mod<'msg, Note, Note> for ExtNoteMod {
         fn apply(
             &self,
             input: Note,
@@ -232,12 +230,8 @@ pub mod resource {
         }
     }
 
-    impl<'name> Resource<'name> for ExtNoteMod<'name> {
-        fn name(&self) -> Cow<'name, str> {
-            todo!()
-        }
-
-        fn set_name(&mut self, new: String) {
+    impl Resource for ExtNoteMod {
+        fn orig_name(&self) -> Option<&str> {
             todo!()
         }
 
@@ -258,7 +252,7 @@ pub mod resource {
         }
     }
 
-    impl<'msg> Mod<'msg, Sound, Sound> for ExtSoundMod<'msg> {
+    impl<'msg> Mod<'msg, Sound, Sound> for ExtSoundMod {
         fn apply(
             &self,
             input: Sound,
@@ -269,12 +263,8 @@ pub mod resource {
         }
     }
 
-    impl<'name> Resource<'name> for ExtSoundMod<'name> {
-        fn name(&self) -> Cow<'name, str> {
-            todo!()
-        }
-
-        fn set_name(&mut self, new: String) {
+    impl Resource for ExtSoundMod {
+        fn orig_name(&self) -> Option<&str> {
             todo!()
         }
 
@@ -295,7 +285,7 @@ pub mod resource {
         }
     }
 
-    impl<'msg> Mod<'msg, Note, Sound> for ExtInstrument<'msg> {
+    impl<'msg> Mod<'msg, Note, Sound> for ExtInstrument {
         fn apply(
             &self,
             input: Note,
@@ -306,12 +296,8 @@ pub mod resource {
         }
     }
 
-    impl<'name> Resource<'name> for ExtInstrument<'name> {
-        fn name(&self) -> Cow<'name, str> {
-            todo!()
-        }
-
-        fn set_name(&mut self, new: String) {
+    impl Resource for ExtInstrument {
+        fn orig_name(&self) -> Option<&str> {
             todo!()
         }
 
@@ -397,8 +383,10 @@ pub mod channel {
         octave: u8,
         length: u8,
         velocity: u8,
-        //TODO: review if this is a good approach
+        //TODO: if we stick mods into Rc, we cannot change their name as a Resource.
+        //So the name has to be split away.
         instrument: Rc<dyn for<'a> Mod<'a, Note, Sound>>,
+        //TODO: replace with Cow<[Rc<Mod]>
         note_modifiers: Vec<Rc<dyn for<'a> Mod<'a, Note, Note>>>,
         sound_modifiers: Vec<Rc<dyn for<'a> Mod<'a, Sound, Sound>>>,
         //TODO: state and config information for the resources
