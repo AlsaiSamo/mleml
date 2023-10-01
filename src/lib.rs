@@ -35,14 +35,13 @@ impl<T: Eq + Hash> SetRc<T> for HashSet<Rc<T>> {
 }
 
 pub mod resource {
-    use crate::types::{Note, ResSound, Sound};
+    use crate::types::{Note, ResSound};
     use core::{fmt, slice};
     use serde::{Deserialize, Serialize};
     use serde_json::{json, to_vec};
     use std::{
         borrow::Cow,
         ffi::CStr,
-        fmt::Display,
         hash::{Hash, Hasher},
         mem::{discriminant, Discriminant},
         ptr,
@@ -60,6 +59,9 @@ pub mod resource {
         }
         fn as_slice(&self) -> &[JsonValue] {
             self.0.as_array().unwrap().as_slice()
+        }
+        fn as_byte_vec(&self) -> Vec<u8> {
+            to_vec(&self.0).unwrap()
         }
         //Maintains array's flatness
         fn push(&mut self, item: JsonValue) -> Option<()> {
@@ -187,15 +189,21 @@ pub mod resource {
     }
 
     //A (possibly dynamically loaded) resource (a library that provides a function)
-    pub trait Resource: Hash {
+    pub trait Resource {
         //Constant name defined in the resource
-        fn orig_name(&self) -> Option<&str>;
+        fn orig_name(&self) -> Option<Cow<'_, str>>;
         //ID of a resource is unique and cannot be changed
         fn id(&self) -> &str;
-        fn check_config(&self, conf: ResConfig) -> Result<(), &str>;
+        fn check_config(&self, conf: ResConfig) -> Result<(), Cow<'_, str>>;
         //We cannot look into ResState so we can only check that it is correct
         fn check_state(&self, state: ResState) -> Option<()>;
-        fn get_config_schema(&self) -> &ResConfig;
+        //fn get_config_schema(&self) -> &ResConfig;
+    }
+
+    impl Hash for dyn Resource {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            self.id().hash(state)
+        }
     }
 
     pub trait Mod<'msg, I, O>: Resource {
@@ -213,7 +221,7 @@ pub mod resource {
         is_ok: bool,
         item: *const T,
         //If ok, it is state. If not, it is error.
-        msg_len: u32,
+        msg_len: usize,
         msg: *const i8,
     }
 
@@ -226,33 +234,27 @@ pub mod resource {
         schema: ResConfig,
         apply: extern "C" fn(
             input: *const I,
-            conf_size: u32,
-            conf: *const i8,
-            state_size: u32,
+            conf_size: usize,
+            conf: *const u8,
+            state_size: usize,
             state: *const u8,
         ) -> ResReturn<O>,
         //It is fine to deallocate the message
         dealloc: extern "C" fn(),
         orig_name: extern "C" fn() -> *const i8,
-        check_config: extern "C" fn(size: u32, conf: *const i8) -> ResReturn<NoItem>,
-        check_state: extern "C" fn(size: u32, state: *const u8) -> ResReturn<NoItem>,
+        check_config: extern "C" fn(size: usize, conf: *const u8) -> ResReturn<NoItem>,
+        check_state: extern "C" fn(size: usize, state: *const u8) -> ResReturn<NoItem>,
         //TODO: this needs to be used during resource creation, it is not necessary
         // to keep around.
         //config_schema: extern "C" fn() -> (u32, *const u8),
     }
 
-    impl<I, O> Hash for ExtResource<I, O> {
-        fn hash<H: Hasher>(&self, state: &mut H) {
-            self.id.hash(state);
-        }
-    }
-
     impl<I, O> Resource for ExtResource<I, O> {
-        fn orig_name(&self) -> Option<&str> {
+        fn orig_name(&self) -> Option<Cow<'_, str>> {
             unsafe {
-                match self.orig_name.call(()) {
+                match (self.orig_name)() {
                     ptr if ptr.is_null() => None,
-                    ptr => Some(CStr::from_ptr(ptr)),
+                    ptr => Some(CStr::from_ptr(ptr).to_string_lossy()),
                 }
             }
         }
@@ -261,21 +263,21 @@ pub mod resource {
             return self.id.as_str();
         }
 
-        fn check_config(&self, conf: ResConfig) -> Result<(), &str> {
-            let slice = conf.as_slice();
+        //TODO: Cow-ify str to match Err return type here and in orig_name
+        fn check_config(&self, conf: ResConfig) -> Result<(), Cow<'_, str>> {
+            let conf = conf.as_byte_vec();
             unsafe {
-                let ret = self.check_config.call((slice.len(), slice.as_ptr()));
+                let ret = (self.check_config)(conf.len(), conf.as_ptr());
                 if ret.is_ok {
                     return Ok(());
                 } else {
-                    return Err(CStr::from(ret.msg));
+                    return Err(CStr::from_ptr(ret.msg).to_string_lossy());
                 }
             }
         }
 
         fn check_state(&self, state: ResState) -> Option<()> {
-            self.check_state
-                .call((state.len(), state.as_ptr()))
+            (self.check_state)(state.len(), state.as_ptr())
                 .is_ok
                 .then_some(())
         }
@@ -288,19 +290,19 @@ pub mod resource {
             conf: ResConfig,
             state: ResState,
         ) -> Result<(O, ResState), Cow<'msg, str>> {
-            let conf = conf.as_slice();
+            let conf = conf.as_byte_vec();
             unsafe {
-                let ret = self.apply.call((
+                let ret = (self.apply)(
                     ptr::from_ref(input),
                     conf.len(),
-                    conf.as_ptr(),
+                    (conf).as_ptr(),
                     state.len(),
-                    state,
-                ));
+                    state.as_ptr(),
+                );
                 match ret.is_ok {
                     true => Ok((
-                        (ret.item as *const O).to_owned(),
-                        Rc::new(slice::from_raw_parts(ret.msg, ret.msg_len).to_owned()),
+                        (ret.item as *const O).read(),
+                        Rc::from(slice::from_raw_parts(ret.msg as *const u8, ret.msg_len)),
                     )),
                     false => Err(CStr::from_ptr(ret.msg).to_string_lossy()),
                 }
