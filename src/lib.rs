@@ -1,4 +1,5 @@
 #![feature(hash_set_entry)]
+#![feature(ptr_from_ref)]
 
 pub mod platform {
     //TODO: soundmod
@@ -35,13 +36,16 @@ impl<T: Eq + Hash> SetRc<T> for HashSet<Rc<T>> {
 
 pub mod resource {
     use crate::types::{Note, ResSound, Sound};
-    use core::fmt;
+    use core::{fmt, slice};
     use serde::{Deserialize, Serialize};
     use serde_json::{json, to_vec};
     use std::{
         borrow::Cow,
+        ffi::CStr,
+        fmt::Display,
         hash::{Hash, Hasher},
         mem::{discriminant, Discriminant},
+        ptr,
         rc::Rc,
     };
 
@@ -161,7 +165,8 @@ pub mod resource {
         }
     }
 
-    pub struct ResState(Rc<[u8]>);
+    //pub struct ResState(Rc<[u8]>);
+    type ResState = Rc<[u8]>;
 
     pub enum ConfigError {
         BadValue(u32, JsonValue, JsonValue),
@@ -187,14 +192,19 @@ pub mod resource {
         fn orig_name(&self) -> Option<&str>;
         //ID of a resource is unique and cannot be changed
         fn id(&self) -> &str;
-        fn check_config(&self, conf: ResConfig) -> Result<(), ConfigError>;
+        fn check_config(&self, conf: ResConfig) -> Result<(), &str>;
         //We cannot look into ResState so we can only check that it is correct
         fn check_state(&self, state: ResState) -> Option<()>;
         fn get_config_schema(&self) -> &ResConfig;
     }
 
     pub trait Mod<'msg, I, O>: Resource {
-        fn apply(&self, input: I, conf: ResConfig, state: ResState) -> Result<O, Cow<'msg, str>>;
+        fn apply(
+            &self,
+            input: &I,
+            conf: ResConfig,
+            state: ResState,
+        ) -> Result<(O, ResState), Cow<'msg, str>>;
     }
 
     //Return type for loadable resources
@@ -212,11 +222,23 @@ pub mod resource {
 
     struct ExtResource<I, O> {
         id: String,
-        apply: extern "C" fn(I, conf: *const i8, state: *const u8) -> ResReturn<O>,
+        //In this format here, comes from a deser. string given by the resource
+        schema: ResConfig,
+        apply: extern "C" fn(
+            input: *const I,
+            conf_size: u32,
+            conf: *const i8,
+            state_size: u32,
+            state: *const u8,
+        ) -> ResReturn<O>,
         //It is fine to deallocate the message
         dealloc: extern "C" fn(),
         orig_name: extern "C" fn() -> *const i8,
-        check_config: extern "C" fn(conf: *const i8) -> ResReturn<NoItem>,
+        check_config: extern "C" fn(size: u32, conf: *const i8) -> ResReturn<NoItem>,
+        check_state: extern "C" fn(size: u32, state: *const u8) -> ResReturn<NoItem>,
+        //TODO: this needs to be used during resource creation, it is not necessary
+        // to keep around.
+        //config_schema: extern "C" fn() -> (u32, *const u8),
     }
 
     impl<I, O> Hash for ExtResource<I, O> {
@@ -227,29 +249,62 @@ pub mod resource {
 
     impl<I, O> Resource for ExtResource<I, O> {
         fn orig_name(&self) -> Option<&str> {
-            todo!()
+            unsafe {
+                match self.orig_name.call(()) {
+                    ptr if ptr.is_null() => None,
+                    ptr => Some(CStr::from_ptr(ptr)),
+                }
+            }
         }
 
         fn id(&self) -> &str {
-            return self.id.as_str()
+            return self.id.as_str();
         }
 
-        fn check_config(&self, conf: ResConfig) -> Result<(), ConfigError> {
-            todo!()
+        fn check_config(&self, conf: ResConfig) -> Result<(), &str> {
+            let slice = conf.as_slice();
+            unsafe {
+                let ret = self.check_config.call((slice.len(), slice.as_ptr()));
+                if ret.is_ok {
+                    return Ok(());
+                } else {
+                    return Err(CStr::from(ret.msg));
+                }
+            }
         }
 
         fn check_state(&self, state: ResState) -> Option<()> {
-            todo!()
-        }
-
-        fn get_config_schema(&self) -> &ResConfig {
-            todo!()
+            self.check_state
+                .call((state.len(), state.as_ptr()))
+                .is_ok
+                .then_some(())
         }
     }
 
     impl<'msg, I, O> Mod<'msg, I, O> for ExtResource<I, O> {
-        fn apply(&self, input: I, conf: ResConfig, state: ResState) -> Result<O, Cow<'msg, str>> {
-            todo!()
+        fn apply(
+            &self,
+            input: &I,
+            conf: ResConfig,
+            state: ResState,
+        ) -> Result<(O, ResState), Cow<'msg, str>> {
+            let conf = conf.as_slice();
+            unsafe {
+                let ret = self.apply.call((
+                    ptr::from_ref(input),
+                    conf.len(),
+                    conf.as_ptr(),
+                    state.len(),
+                    state,
+                ));
+                match ret.is_ok {
+                    true => Ok((
+                        (ret.item as *const O).to_owned(),
+                        Rc::new(slice::from_raw_parts(ret.msg, ret.msg_len).to_owned()),
+                    )),
+                    false => Err(CStr::from_ptr(ret.msg).to_string_lossy()),
+                }
+            }
         }
     }
 
