@@ -83,7 +83,7 @@ pub mod resource {
 
     type ResConfig = JsonArray;
 
-    enum ConfigBuilderError {
+    pub enum ConfigBuilderError {
         BadSchema,
         TypeMismatch(usize, Discriminant<JsonValue>, Discriminant<JsonValue>),
     }
@@ -130,13 +130,18 @@ pub mod resource {
         {
             let mut values = values.into_iter();
             let mut count = 0;
+            //if let BuilderState::Builder(build) = self {
             while let BuilderState::Builder(build) = self {
                 let val = values.next();
                 match val.is_none() {
                     true => return Ok(count),
                     false => {
                         count += 1;
-                        build.append(val.unwrap())?;
+                        match build.append(val.unwrap())? {
+                            //I think this will not be time consuming
+                            true => *self = BuilderState::Config(build.config.to_owned()),
+                            false => {}
+                        }
                     }
                 }
             }
@@ -145,7 +150,8 @@ pub mod resource {
     }
 
     impl<'a> ConfigBuilder<'a> {
-        pub fn append(mut self, value: JsonValue) -> Result<BuilderState<'a>, ConfigBuilderError> {
+        //true == full
+        fn append(&mut self, value: JsonValue) -> Result<bool, ConfigBuilderError> {
             let position = self.config.as_slice().len();
             let current_type = discriminant(&self.schema.as_slice()[position]);
             let given_type = discriminant(&value);
@@ -160,9 +166,9 @@ pub mod resource {
                 .push(value)
                 .ok_or_else(|| ConfigBuilderError::BadSchema)?;
             if position == self.schema.as_slice().len() {
-                Ok(BuilderState::Config(self.config))
+                Ok(true)
             } else {
-                Ok(BuilderState::Builder(self))
+                Ok(false)
             }
         }
     }
@@ -210,7 +216,7 @@ pub mod resource {
         fn apply(
             &self,
             input: &I,
-            conf: ResConfig,
+            conf: &ResConfig,
             state: ResState,
         ) -> Result<(O, ResState), Cow<'msg, str>>;
     }
@@ -228,7 +234,7 @@ pub mod resource {
     #[repr(C)]
     struct NoItem([u8; 0]);
 
-    struct ExtResource<I, O> {
+    pub struct ExtResource<I, O> {
         id: String,
         //In this format here, comes from a deser. string given by the resource
         schema: ResConfig,
@@ -263,7 +269,6 @@ pub mod resource {
             return self.id.as_str();
         }
 
-        //TODO: Cow-ify str to match Err return type here and in orig_name
         fn check_config(&self, conf: ResConfig) -> Result<(), Cow<'_, str>> {
             let conf = conf.as_byte_vec();
             unsafe {
@@ -287,7 +292,7 @@ pub mod resource {
         fn apply(
             &self,
             input: &I,
-            conf: ResConfig,
+            conf: &ResConfig,
             state: ResState,
         ) -> Result<(O, ResState), Cow<'msg, str>> {
             let conf = conf.as_byte_vec();
@@ -313,6 +318,24 @@ pub mod resource {
     pub type ExtNoteMod = ExtResource<Note, Note>;
     pub type ExtSoundMod = ExtResource<ResSound, ResSound>;
     pub type ExtInstrument = ExtResource<Note, ResSound>;
+
+    //Module, conf and state bundled together for ease of use.
+    #[derive(Clone)]
+    pub struct ResLump<I, O> {
+        pub module: Rc<dyn for<'a> Mod<'a, I, O>>,
+        pub conf: Rc<ResConfig>,
+        pub state: Rc<[u8]>,
+    }
+
+    impl<'msg, I, O> ResLump<I, O> {
+        pub fn apply(&self, input: I) -> Result<(O, Rc<[u8]>), Cow<'msg, str>> {
+            self.module.apply(&input, &self.conf, self.state.clone())
+        }
+    }
+
+    pub type NoteModLump = ResLump<Note, Note>;
+    pub type SoundModLump = ResLump<ResSound, ResSound>;
+    pub type InstrumentLump = ResLump<Note, ResSound>;
 }
 
 pub mod types {
@@ -371,6 +394,7 @@ pub mod types {
 
 pub mod channel {
     use crate::platform::CCCC;
+    use crate::resource::{InstrumentLump, NoteModLump, SoundModLump};
     use crate::types::ReadyNote;
     use crate::{
         resource::Mod,
@@ -378,84 +402,15 @@ pub mod channel {
     };
     use std::rc::Rc;
 
-    //State of the channel at the start of a note/rest
+    //Note to self: check some prev. commit for the pipeline code
     pub struct ChannelState {
-        //Length of one tick in seconds
         tick_length: f32,
-        //Platform-defined volume setting
         volume: u8,
-        note: Note,
         octave: u8,
         length: u8,
         velocity: u8,
-        //TODO: if we stick mods into Rc, we cannot change their name as a Resource.
-        //So the name has to be split away.
-        instrument: Rc<dyn for<'msg> Mod<'msg, Note, Sound>>,
-        //TODO: replace with Cow<[Rc<Mod]>
-        note_modifiers: Vec<Rc<dyn for<'msg> Mod<'msg, Note, Note>>>,
-        sound_modifiers: Vec<Rc<dyn for<'msg> Mod<'msg, Sound, Sound>>>,
-        //TODO: state and config information for the resources
+        instrument: InstrumentLump,
+        note_mods: Vec<NoteModLump>,
+        sound_mods: Vec<SoundModLump>,
     }
-
-    impl ChannelState {
-        pub fn play(&self) -> Result<Sound, String> {
-            //TODO: pass in config and state of the mods
-            let note = self
-                .note_modifiers
-                .iter()
-                .fold(self.note, |a, f| f.apply(a).unwrap());
-            let note = ReadyNote {
-                len: self.tick_length * (note.len.unwrap_or(self.length)).get() as f32,
-                //TODO:
-                pitch: note.pitch.and_then(|_| {
-                    Some(
-                        CCCC * 2.0_f32.powf(
-                            (note.pitch.unwrap().get() as f32 + note.cents as f32 / 100.0) / 12.0
-                                + self.octave as f32,
-                        ),
-                    )
-                }),
-                volume: self.volume as f32,
-            };
-            //Apply everything
-            //TODO: pass in state, config, and volume
-            let mut sound = self.instrument.apply(note)?;
-            sound = self
-                .sound_modifiers
-                .iter()
-                .fold(sound, |a, f| f.apply(a).unwrap());
-            //TODO: apply platform's sound mod
-            Ok(sound)
-        }
-    }
-
-    pub struct TrackState {
-        //Platform-defined ticks since start
-        tick: usize,
-        channels: Vec<ChannelState>,
-        //TODO: state and config for platform code
-    }
-
-    impl TrackState {
-        //TODO: play(), new(), etc.
-    }
-}
-//All of the commands that can be executed on a channel
-pub enum Instruction {
-    //Play or not play a new sound
-    Play(Note),
-    //TODO: Enter macro
-    //macro: Macro,
-    //Set instrument, add/remove sound/note mod
-    Instrument(ModName),
-    AddNoteMod(ModName),
-    RemNoteMod(ModName),
-    AddSoundMod(ModName),
-    RemSoundMod(ModName),
-    //Set volume
-    Volume(Volume),
-    //Set octave
-    Octave(Octave),
-    //Set note's default length
-    Length(Length),
 }
