@@ -3,7 +3,8 @@
 #![feature(hash_set_entry)]
 #![feature(ptr_from_ref)]
 
-//TODO: zenlen analog, or use time signatures
+//TODO: create examlpe platform and mods, feature-gated, and preferably in
+//Rust and C.
 
 //TODO: I am using equal temperament here, so mention that
 //also that some parts stick to MIDI.
@@ -15,58 +16,65 @@
 //!It strives to be flexible enough to allow making an output closely resembling
 //!that of some chip (platform).
 
-///Stub verstion of platform code.
-///
-///This module (or, rather, what it will be reworked into) is used to
-///provide constraints and quirks that exist on a platform that is being written
-///music for (for example, YM2608 chip).
-///
-///Platform code cannot constrain sound-producing mods, so for genuine mimicking
-///of a platform one needs to also select the correct mods.
-pub mod platform {
-    //TODO: mods for every part of platform step
-    //TODO: understand what goes here
+/////Stub verstion of platform code.
+/////
+/////This module (or, rather, what it will be reworked into) is used to
+/////provide constraints and quirks that exist on a platform that is being written
+/////music for (for example, YM2608 chip).
+/////
+/////Platform code cannot constrain sound-producing mods, so for genuine mimicking
+/////of a platform one needs to also select the correct mods.
+//TODO: remove
+// pub mod platform {
+//     //TODO: mods for every part of platform step
+//     //TODO: understand what goes here
 
-    ///Frequency of C-1. All other note frequencies are derived from it.
-    ///
-    ///For reference, A440 standard makes C-1 equal to 8.175799.
-    pub const CCCC: f32 = 8.175799;
-    ///Maximum tick value permitted for a note.
-    pub const MAX_TICK: u32 = 256;
-    ///Full volume value
-    pub const MAX_VOLUME: u32 = 100;
-    //TODO: clarify how this is used (what length is considered for tempo)
-    pub const MAX_TEMPO: f32 = 256.0;
-    ///Maximum number of channels permitted
-    pub const MAX_CHANNELS: u32 = 256;
-}
+//     ///Frequency of C-1. All other note frequencies are derived from it.
+//     ///
+//     ///For reference, A440 standard makes C-1 equal to 8.175799.
+//     pub const CCCC: f32 = 8.175799;
+//     ///Maximum tick value permitted for a note.
+//     pub const MAX_TICK: u32 = 256;
+//     ///Full volume value
+//     pub const MAX_VOLUME: u32 = 100;
+//     //TODO: clarify how this is used (what length is considered for tempo)
+//     pub const MAX_TEMPO: f32 = 256.0;
+//     ///Maximum number of channels permitted
+//     pub const MAX_CHANNELS: u32 = 256;
+// }
 
-use std::collections::HashSet;
-use std::{hash::Hash, rc::Rc};
+//TODO: feature-gate
+///Extra things to help with storing data
+pub mod extra {
+    use std::collections::HashSet;
+    use std::{hash::Hash, rc::Rc};
 
-//TODO: move somewhere else
-pub trait SetRc<T> {
-    //Removes all solitary Rc's (strong count is 1) as they are not used anywhere
-    fn trim(&mut self);
-    fn wrap(&mut self, value: T) -> Rc<T>;
-}
-
-impl<T: Eq + Hash> SetRc<T> for HashSet<Rc<T>> {
-    fn trim(&mut self) {
-        self.retain(|r| Rc::strong_count(r) == 1);
+    ///Trait for sets that contain Rc<T>
+    pub trait SetRc<T> {
+        ///Remove unused Rc's.
+        fn trim(&mut self);
+        ///Return an Rc that already has T or create a new one.
+        fn wrap(&mut self, value: T) -> Rc<T>;
     }
 
-    fn wrap(&mut self, value: T) -> Rc<T> {
-        let new = Rc::new(value);
-        self.get_or_insert_owned(&new).clone()
+    impl<T: Eq + Hash> SetRc<T> for HashSet<Rc<T>> {
+        fn trim(&mut self) {
+            self.retain(|r| Rc::strong_count(r) == 1);
+        }
+
+        fn wrap(&mut self, value: T) -> Rc<T> {
+            let new = Rc::new(value);
+            self.get_or_insert_owned(&new).clone()
+        }
     }
+
 }
 
 ///Provides resources (currently of one type) along with the necessary types.
 //TODO: write about config, state, Mod, FFI, ResLump
 pub mod resource {
     //TODO: resource constructor for ExtResource
-    use crate::types::{Note, ResSound};
+    use crate::types::{Note, ResSound, ReadyNote};
     use core::{fmt, slice};
     use serde::{Deserialize, Serialize};
     use serde_json::{json, to_vec};
@@ -163,9 +171,6 @@ pub mod resource {
                 });
             }
         }
-        //Appends items from the iterator, until a wrong one is found,
-        //or the iterator ends, or the config is complete. Count of taken elements is
-        //returned.
         ///Append items from given iterable until configuration is built,
         ///all items were appended, or an error occurs.
         pub fn inject<I>(&mut self, values: I) -> Result<usize, ConfigBuilderError>
@@ -262,6 +267,46 @@ pub mod resource {
         fn hash<H: Hasher>(&self, state: &mut H) {
             self.id().hash(state)
         }
+    }
+
+    //TODO: platform. PlatformValues, struct that has functions, incl. mixer.
+
+    ///Values provided by the platform, such as maixmum channel count,
+    ///frequency of C-1, acceptable volume range, and more.
+    ///
+    ///The platform may, for example, allow more channels, if configured to do so.
+    #[repr(C)]
+    pub struct PlatformValues {
+        ///Frequency of C-1. All other note frequencies are derived from it.
+        ///
+        ///For reference, A440 standard makes C-1 equal to 8.175799.
+        pub cccc: f32,
+        ///Length of one tick in seconds.
+        pub tick_len: f32,
+        ///Length of a whole note in ticks.
+        pub zenlen: u32,
+        ///Number of ticks per beat.
+        pub tempo: f32,
+        ///What number denotes maximum volume setting.
+        pub max_volume: u32,
+        ///Maximum number of sound-producing channels.
+        pub channels: u32
+    }
+
+    ///Resource that defines the quirks and limitations of a given platform
+    ///(usually a sound chip).
+    ///
+    ///As an example of a platform quirk, PMDMML plays SSG drums, defined in K channel,
+    /// on I channel, which means that it is not possible to just mix sound.
+    pub trait Platform: Resource {
+        ///Get platform values
+        fn get_vals() -> PlatformValues;
+        //TODO: explain somewhere that platform works with channels by their order,
+        //which needs to be upheld in interpreter
+        //TODO: what should I pass in? Something that is also easily FFI-convertable
+        // (can I use variadics for this?)
+        // ///Mix sound from provided channels
+        //fn mix(&[])-> todo!();
     }
 
     ///A resource that is used in data transformations.
@@ -412,7 +457,7 @@ pub mod resource {
     #[allow(missing_docs)]
     pub type SoundModLump = ResLump<ResSound, ResSound>;
     #[allow(missing_docs)]
-    pub type InstrumentLump = ResLump<Note, ResSound>;
+    pub type InstrumentLump = ResLump<ReadyNote, ResSound>;
 }
 
 ///Types used throughout the library.
@@ -446,6 +491,9 @@ pub mod types {
     pub struct ReadyNote {
         ///Length of a note in seconds.
         pub len: f32,
+        ///Length of sound generated while it decays (fourth stage of ADSR envelope),
+        /// in seconds.
+        pub post_release: f32,
         ///Pitch of a note in Hz. None means that this is a rest.
         pub pitch: Option<f32>,
         ///Velocity of a note. Default is 128.
