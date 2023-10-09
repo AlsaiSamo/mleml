@@ -15,7 +15,7 @@
 //TODO: write about config, state, Mod, FFI, ResLump
 
 //TODO: constructor for ExtResource
-use crate::types::{Note, ReadyNote, ResSound};
+use crate::types::{Note, ReadyNote, ResSound, Sound};
 use core::{fmt, slice};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, to_vec};
@@ -193,6 +193,8 @@ impl fmt::Display for ConfigError {
     }
 }
 
+///Base trait for any resource.
+///
 ///Resources of any type need to conform to these constraints:
 /// 1. Provide unique ID
 /// 2. Only provide pure functions (state is given and returned when needed)
@@ -257,18 +259,26 @@ pub struct PlatformValues {
 ///It should be noted that platform cannot influence what selection of modules
 ///is used for any of the channels, or their order. Please be careful when
 ///mimicking output of a sound chip.
-pub trait Platform: Resource {
-    ///Get platform values
+pub trait Platform<'msg>: Resource {
+    ///Get platform values.
     fn get_vals() -> PlatformValues;
 
-    //TODO: explain somewhere that platform works with channels by their order,
-    //which needs to be upheld in interpreter
-    //TODO: what should I pass in? Something that is also easily FFI-convertable
-    // (can I use variadics for this?)
-    // ///Mix sound from provided channels
-    //fn mix(&[])-> todo!();
-    //TODO: provide "how to use" string? Would help the end user with channel
-    //ordering, and other things.
+    ///Mix provided sound samples.
+    ///
+    ///Sound samples are expected to come in the same order the channels that
+    ///have produced them do.
+    fn mix(
+        channels: &[&Sound],
+        conf: &ResConfig,
+        state: ResState,
+    ) -> Result<(Sound, ResState), Cow<'msg, str>>;
+
+    //TODO: move this to Resource?
+    ///Get platform's description.
+    ///
+    ///This may be used to provide any message, for example, the order of channels,
+    ///and how they are going to be mixed.
+    fn description() -> String;
 }
 
 ///A resource that is used in data transformations.
