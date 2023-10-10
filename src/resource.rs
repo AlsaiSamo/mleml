@@ -12,7 +12,7 @@
 //They may also provide a name for themselves.
 //
 
-//TODO: write about config, state, Mod, FFI, ResLump
+//TODO: can I ditch mem::Discriminant?
 
 //TODO: constructor for ExtResource
 use crate::types::{Note, ReadyNote, ResSound, Sound};
@@ -172,9 +172,8 @@ type ResState = Rc<[u8]>;
 
 ///Configuration error.
 pub enum ConfigError {
-    //TODO: make JsonValues into refs. And maybe display something else?
     ///Unexpected type of value.
-    BadValue(u32, JsonValue, JsonValue),
+    BadValue(u32, Discriminant<JsonValue>, Discriminant<JsonValue>),
 
     ///Incorrect length.
     BadLength(u32, u32),
