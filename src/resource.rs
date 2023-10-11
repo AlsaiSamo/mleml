@@ -35,19 +35,22 @@ type JsonValue = serde_json::Value;
 pub struct JsonArray(JsonValue);
 
 impl JsonArray {
-    ///Create new, empty JSON array
+    ///Create new, empty JSON array.
     fn new() -> Self {
         Self { 0: json!([]) }
     }
-    ///Get elements in a slice
+
+    ///Get elements in a slice.
     fn as_slice(&self) -> &[JsonValue] {
         self.0.as_array().unwrap().as_slice()
     }
-    ///Serialize into byte vector
+
+    ///Serialize into byte vector.
     fn as_byte_vec(&self) -> Vec<u8> {
         to_vec(&self.0).unwrap()
     }
-    ///Push item into the array as long as the item is not an array or a map
+
+    ///Push item into the array as long as the item is not an array or a map.
     fn push(&mut self, item: JsonValue) -> Option<()> {
         match item.is_array() | item.is_object() {
             true => None,
@@ -61,27 +64,33 @@ impl JsonArray {
 
 impl Hash for JsonArray {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        to_vec(self.as_slice()).unwrap().hash(state);
+        //to_vec(self.as_slice()).unwrap().hash(state);
+        self.as_byte_vec().hash(state);
     }
 }
 
 type ResConfig = JsonArray;
 
+//TODO: rewrite into a unit struct or add something else
 ///Error encountered while building configuration.
+#[derive(Eq, PartialEq, Debug)]
 pub enum ConfigBuilderError {
-    ///Schema provided by module cannot be used.
-    BadSchema,
-
     ///Provided type does not match the type defined in the schema.
     TypeMismatch(usize, Discriminant<JsonValue>, Discriminant<JsonValue>),
+
+    ///Configuration's length matches the schema's, so the provided value
+    ///cannot fit.
+    ValueOutsideSchema,
 }
 
 impl fmt::Display for ConfigBuilderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::BadSchema => write!(f, "Schema is not a flat array"),
             Self::TypeMismatch(l, e, g) => {
                 write!(f, "Type mismatch at {l}: expected {:?}, got {:?}", e, g)
+            }
+            Self::ValueOutsideSchema => {
+                write!(f, "Value is not needed as the config is comlete already")
             }
         }
     }
@@ -89,7 +98,9 @@ impl fmt::Display for ConfigBuilderError {
 
 ///Unfinished configuration builder (not all values were provided).
 pub struct ConfBuilding<'a> {
+    ///Schema of the module.
     schema: &'a ResConfig,
+    ///Configuration that is being built.
     config: ResConfig,
 }
 
@@ -119,10 +130,22 @@ impl<'a> ConfigBuilder<'a> {
 
     ///Append items from given iterable until configuration is built,
     ///all items were appended, or an error occurs.
+    ///
+    ///If iterable is longer than what is needed, extra values will be unused.
+    ///If it is shorter instead, the builder will remain a builder.
+    //TODO: this accepts an owned value, which probably introduces uneccessary copying.
+    //I should only make it copy before writing a value into the end vec.
+    //With that, also make the test pass in a values.iter()
+    //TODO: current approach silently discards values that did not fit but
+    //returns error on attempt to append to a finished config.
+    //SHould it return error on extra values always? Or should it return Ok(0)?
     pub fn inject<I>(&mut self, values: I) -> Result<usize, ConfigBuilderError>
     where
         I: IntoIterator<Item = JsonValue>,
     {
+        if let ConfigBuilder::Config(_) = self {
+            return Err(ConfigBuilderError::ValueOutsideSchema)
+        }
         let mut values = values.into_iter();
         let mut count = 0;
         while let ConfigBuilder::Builder(build) = self {
@@ -141,26 +164,43 @@ impl<'a> ConfigBuilder<'a> {
         }
         return Ok(count);
     }
+
+    /// Returns `true` if the config builder is [`Builder`].
+    ///
+    /// [`Builder`]: ConfigBuilder::Builder
+    #[must_use]
+    pub fn is_builder(&self) -> bool {
+        matches!(self, Self::Builder(..))
+    }
+
+    /// Returns `true` if the config builder is [`Config`].
+    ///
+    /// [`Config`]: ConfigBuilder::Config
+    #[must_use]
+    pub fn is_config(&self) -> bool {
+        matches!(self, Self::Config(..))
+    }
 }
 
 impl<'a> ConfBuilding<'a> {
     ///Checks and appends one item to the unfinished configuration. Ok(true)
     ///signals that the config is full.
     fn append(&mut self, value: JsonValue) -> Result<bool, ConfigBuilderError> {
+        if self.schema.as_slice().len() == self.config.as_slice().len() {
+            return Err(ConfigBuilderError::ValueOutsideSchema);
+        }
         let position = self.config.as_slice().len();
         let current_type = discriminant(&self.schema.as_slice()[position]);
         let given_type = discriminant(&value);
         if current_type != given_type {
             return Err(ConfigBuilderError::TypeMismatch(
-                position + 1,
+                position,
                 current_type,
                 given_type,
             ));
         };
-        self.config
-            .push(value)
-            .ok_or_else(|| ConfigBuilderError::BadSchema)?;
-        if position == self.schema.as_slice().len() {
+        self.config.push(value).unwrap();
+        if position == self.schema.as_slice().len() - 1 {
             Ok(true)
         } else {
             Ok(false)
@@ -171,6 +211,7 @@ impl<'a> ConfBuilding<'a> {
 type ResState = Rc<[u8]>;
 
 ///Configuration error.
+#[derive(Eq, PartialEq)]
 pub enum ConfigError {
     ///Unexpected type of value.
     BadValue(u32, Discriminant<JsonValue>, Discriminant<JsonValue>),
@@ -448,3 +489,200 @@ pub type NoteModLump = ResLump<Note, Note>;
 pub type SoundModLump = ResLump<ResSound, ResSound>;
 #[allow(missing_docs)]
 pub type InstrumentLump = ResLump<ReadyNote, ResSound>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn example_json_array() -> JsonArray {
+        let mut arr = JsonArray::new();
+        arr.push(json!(22.5)).unwrap();
+        arr.push(json!("precacious")).unwrap();
+        arr.push(json!(true)).unwrap();
+        arr
+    }
+
+    #[test]
+    fn json_array_good_types_are_pushed() {
+        let mut arr = JsonArray::new();
+        arr.push(json!(22.5)).unwrap();
+        arr.push(json!("precacious")).unwrap();
+        arr.push(json!(true)).unwrap();
+    }
+
+    #[test]
+    fn json_array_push_keeps_flatness() {
+        let mut arr = example_json_array();
+        assert!(arr.push(json!([])).is_none());
+        assert!(arr.push(json!({"a": true})).is_none());
+    }
+
+    #[test]
+    fn json_array_as_slice() {
+        let arr = example_json_array();
+        let sliced = [json!(22.5), json!("precacious"), json!(true)];
+        assert_eq!(arr.as_slice(), &sliced)
+    }
+
+    #[test]
+    fn json_array_as_byte_vec() {
+        let arr = example_json_array();
+        assert_eq!(arr.as_byte_vec(), r#"[22.5,"precacious",true]"#.as_bytes());
+    }
+
+    #[test]
+    fn config_builder_returns_empty_config_on_empty_schema() {
+        let schema = JsonArray::new();
+        let builder = ConfigBuilder::new(&schema);
+        if let ConfigBuilder::Builder(_) = builder {
+            panic!("Schema is empty but the builder did not immediately return")
+        }
+    }
+
+    #[test]
+    fn append_to_config_building_works() {
+        let schema = example_json_array();
+        let mut conf_building = ConfBuilding {
+            schema: &schema,
+            config: JsonArray::new(),
+        };
+        //Correct type is Number, and this is not the last element
+        assert!(conf_building.append(json!(30.3)).is_ok_and(|x| !x));
+        //Correct type is String, and this is not the last element
+        assert!(conf_building.append(json!("Very silent")).is_ok_and(|x| !x));
+        //Correct type is Bool, and this is the last element of the config
+        assert!(conf_building.append(json!(false)).is_ok_and(|x| x));
+    }
+
+    #[test]
+    fn append_to_config_building_extra() {
+        let schema = example_json_array();
+        let mut conf_building = ConfBuilding {
+            schema: &schema,
+            config: JsonArray::new(),
+        };
+        //Correct type is Number, and this is not the last element
+        assert!(conf_building.append(json!(30.3)).is_ok_and(|x| !x));
+        //Correct type is String, and this is not the last element
+        assert!(conf_building.append(json!("Very silent")).is_ok_and(|x| !x));
+        //Correct type is Bool, and this is the last element of the config
+        assert!(conf_building.append(json!(false)).is_ok_and(|x| x));
+        assert!(conf_building
+            .append(json!("extra"))
+            .is_err_and(|x| x == ConfigBuilderError::ValueOutsideSchema));
+    }
+
+    #[test]
+    fn append_to_config_building_type_mismatch() {
+        let schema = example_json_array();
+        let mut conf_building = ConfBuilding {
+            schema: &schema,
+            config: JsonArray::new(),
+        };
+        let given_disc = discriminant(&json!("a"));
+        let expected_disc = discriminant(&json!(8));
+        assert!(conf_building
+            .append(json!("teehee"))
+            .is_err_and(|x| x == ConfigBuilderError::TypeMismatch(0, expected_disc, given_disc)));
+    }
+
+    #[test]
+    fn config_builder_inject_typical_use() {
+        let schema = example_json_array();
+        let mut conf_build = ConfigBuilder::new(&schema);
+        let items = vec![json!(2500), json!("merged"), json!(false)];
+
+        match conf_build.inject(items) {
+            Ok(count) => {
+                //Count has to be three because 3 items were inserted
+                assert_eq!(count, 3);
+                //Builder has to be finished
+                assert!(conf_build.is_config())
+            }
+            //Provided items match the schema, so Err(_) is impossible
+            Err(_) => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn config_builder_inject_longer() {
+        let schema = example_json_array();
+        let mut conf_build = ConfigBuilder::new(&schema);
+        //There are more items than needed
+        let items = vec![json!(2500), json!("merged"), json!(false), json!("extra")];
+
+        match conf_build.inject(items) {
+            Ok(count) => {
+                //Count has to be three because 3 items were inserted
+                assert_eq!(count, 3);
+                //Builder has to be finished
+                assert!(conf_build.is_config())
+            }
+            //Provided items match the schema (the last one is dropped), so Err(_) is impossible
+            Err(_) => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn config_builder_inject_two_small() {
+        let schema = example_json_array();
+        let mut conf_build = ConfigBuilder::new(&schema);
+        //Both vectors are smaller than schema
+        let it1 = vec![json!(2500), json!("merged")];
+        let it2 = vec![json!(false), json!("extra")];
+
+        match conf_build.inject(it1) {
+            Ok(count) => {
+                assert_eq!(count, 2);
+                //Builder has to be unfinished
+                assert!(conf_build.is_builder())
+            }
+            Err(_) => unreachable!(),
+        }
+
+        match conf_build.inject(it2) {
+            Ok(count) => {
+                //Schema is of length 3 and two items were inserted earlier, only one
+                //needs to be taken.
+                assert_eq!(count, 1);
+                assert!(conf_build.is_config())
+            }
+            Err(_) => unreachable!(),
+        }
+    }
+
+    #[test]
+    fn config_builder_inject_wrong() {
+        let schema = example_json_array();
+        let mut conf_build = ConfigBuilder::new(&schema);
+        //Second value is not a string
+        let items = vec![json!(7), json!(0xF00F), json!(false)];
+        let given_disc = discriminant(&json!(0xF00F));
+        let expected_disc = discriminant(&json!("bee"));
+
+        match conf_build.inject(items) {
+            Ok(_) => panic!("config builder created a config that does not match the schema"),
+            //Other test proves that extra values will not be accepted,
+            //eliminating ValueOutsideSchema possibility.
+            Err(e) => {
+                assert_eq!(e, ConfigBuilderError::TypeMismatch(1, expected_disc, given_disc));
+            }
+        }
+    }
+
+    #[test]
+    fn config_builder_inject_into_full() {
+        let schema = example_json_array();
+        let mut conf_build = ConfigBuilder::new(&schema);
+        let it1 = vec![json!(2500), json!("merged"), json!(false)];
+        let it2 = vec![json!("extra")];
+
+        //Other test proves that this does not panic.
+        conf_build.inject(it1).unwrap();
+        match conf_build.inject(it2) {
+            Ok(_) => panic!("config builder accepted a value that does not fit into the schema"),
+            Err(e) => assert_eq!(e, ConfigBuilderError::ValueOutsideSchema),
+        }
+    }
+    //TODO: external mod/platform tests
+}
