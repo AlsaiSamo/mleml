@@ -1,6 +1,7 @@
 //!Types that the library operates on.
 
 use dasp::frame::Stereo;
+use core::slice;
 use std::num::NonZeroU8;
 
 ///Note, defined in platform-friendly values.
@@ -42,21 +43,13 @@ pub struct ReadyNote {
 }
 
 ///Immutable slice of PCM data.
+#[derive(Clone)]
 pub struct Sound {
     ///Number of samples per second.
     sampling_rate: u32,
 
     ///Data - array of tuples (left, right).
     data: Box<[Stereo<f32>]>,
-}
-
-///FFI-friendly immutable slice of PCM data.
-#[repr(C)]
-pub struct ResSound {
-    ///Number of samples per second.
-    sampling_rate: u32,
-    data_len: u32,
-    data: *const Stereo<f32>,
 }
 
 impl Sound {
@@ -67,6 +60,7 @@ impl Sound {
             sampling_rate,
         }
     }
+
     ///Get sampling rate.
     pub fn sampling_rate(&self) -> u32 {
         self.sampling_rate
@@ -76,3 +70,4 @@ impl Sound {
         self.data.as_ref()
     }
 }
+

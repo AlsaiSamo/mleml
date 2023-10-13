@@ -1,3 +1,4 @@
+#![warn(missing_docs)]
 //!Configurable, stateful providers of pure functions.
 //!
 //!Configuration is done via flat JSON array.
@@ -6,27 +7,20 @@
 //!`I` into `O` (used to create note -> sound pipeline), while `Platform` provides
 //!constraints, sound mixing, and so on.
 
-//TODO: actualy deliver on these promises.
-//Resources can be dynamically loaded or built-in. They are expected to be able to
-//verify correctness of provided config and state, as well as provide the config schema.
-//They may also provide a name for themselves.
-//
+mod ext;
 
-//TODO: can I ditch mem::Discriminant?
-
-//TODO: constructor for ExtResource
-use crate::types::{Note, ReadyNote, ResSound, Sound};
-use core::{fmt, slice};
+use crate::types::{Note, ReadyNote, Sound};
+use core::fmt;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, to_vec};
 use std::{
     borrow::Cow,
-    ffi::CStr,
     hash::{Hash, Hasher},
     mem::{discriminant, Discriminant},
-    ptr,
     rc::Rc,
 };
+
+use self::ext::ResSound;
 
 type JsonValue = serde_json::Value;
 
@@ -64,14 +58,12 @@ impl JsonArray {
 
 impl Hash for JsonArray {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        //to_vec(self.as_slice()).unwrap().hash(state);
         self.as_byte_vec().hash(state);
     }
 }
 
 type ResConfig = JsonArray;
 
-//TODO: rewrite into a unit struct or add something else
 ///Error encountered while building configuration.
 #[derive(Eq, PartialEq, Debug)]
 pub enum ConfigBuilderError {
@@ -214,6 +206,7 @@ type ResState = Rc<[u8]>;
 #[derive(Eq, PartialEq)]
 pub enum ConfigError {
     ///Unexpected type of value.
+    //TODO: discriminant's debug output is Discriminant(int). Replace with something else.
     BadValue(u32, Discriminant<JsonValue>, Discriminant<JsonValue>),
 
     ///Incorrect length.
@@ -301,14 +294,16 @@ pub struct PlatformValues {
 ///mimicking output of a sound chip.
 pub trait Platform<'msg>: Resource {
     ///Get platform values.
-    fn get_vals() -> PlatformValues;
+    fn get_vals(&self) -> PlatformValues;
 
     ///Mix provided sound samples.
     ///
     ///Sound samples are expected to come in the same order the channels that
-    ///have produced them do.
+    ///have produced them do, and their number must match the number of channels
+    ///expected by the platform.
     fn mix(
-        channels: &[&Sound],
+        &self,
+        channels: &[Sound],
         conf: &ResConfig,
         state: ResState,
     ) -> Result<(Sound, ResState), Cow<'msg, str>>;
@@ -318,7 +313,7 @@ pub trait Platform<'msg>: Resource {
     ///
     ///This may be used to provide any message, for example, the order of channels,
     ///and how they are going to be mixed.
-    fn description() -> String;
+    fn description(&self) -> String;
 }
 
 ///A resource that is used in data transformations.
@@ -334,133 +329,6 @@ pub trait Mod<'msg, I, O>: Resource {
         state: ResState,
     ) -> Result<(O, ResState), Cow<'msg, str>>;
 }
-
-///FFI-friendly return type for all kinds of messages.
-///
-///Functions like (T, Return<[i8], [i8]>)
-#[repr(C)]
-struct ResReturn<T: Sized> {
-    ///Is the response OK or some kind of an error.
-    is_ok: bool,
-    ///Returned item.
-    item: *const T,
-    ///Length of a message.
-    msg_len: usize,
-    ///Message, interpretation of which depends on `is_ok`.
-    msg: *const i8,
-}
-
-//I was told this is good
-#[repr(C)]
-struct NoItem([u8; 0]);
-
-//TODO: wrap dealloc?
-///Mod that is loaded at a runtime as a C library.
-pub struct ExtMod<I, O> {
-    ///Unique ID.
-    id: String,
-
-    ///Schema.
-    schema: ResConfig,
-
-    ///Pure transformation function.
-    apply: extern "C" fn(
-        input: *const I,
-        conf_size: usize,
-        conf: *const u8,
-        state_size: usize,
-        state: *const u8,
-    ) -> ResReturn<O>,
-
-    ///Notify the module that the message can be deallocated safely.
-    ///
-    ///This is required because the module may have been compiled to use
-    ///a different allocator than the library (like jemalloc), which will lead to
-    ///issues if Rust side was to deallocate items created by the loaded library.
-    dealloc: extern "C" fn(),
-
-    ///Original name of the module.
-    orig_name: extern "C" fn() -> *const i8,
-
-    ///Check configuration.
-    check_config: extern "C" fn(size: usize, conf: *const u8) -> ResReturn<NoItem>,
-
-    ///Check state.
-    check_state: extern "C" fn(size: usize, state: *const u8) -> ResReturn<NoItem>,
-    //TODO: this needs to be used during resource creation, it is not necessary
-    // to keep around.
-    //config_schema: extern "C" fn() -> (u32, *const u8),
-}
-
-//TODO: look into making these safe or document how they can mess up.
-impl<I, O> Resource for ExtMod<I, O> {
-    fn orig_name(&self) -> Option<Cow<'_, str>> {
-        unsafe {
-            match (self.orig_name)() {
-                ptr if ptr.is_null() => None,
-                ptr => Some(CStr::from_ptr(ptr).to_string_lossy()),
-            }
-        }
-    }
-
-    fn id(&self) -> &str {
-        return self.id.as_str();
-    }
-
-    fn check_config(&self, conf: ResConfig) -> Result<(), Cow<'_, str>> {
-        let conf = conf.as_byte_vec();
-        let ret = (self.check_config)(conf.len(), conf.as_ptr());
-        if ret.is_ok {
-            return Ok(());
-        } else {
-            unsafe {
-                return Err(CStr::from_ptr(ret.msg).to_string_lossy());
-            }
-        }
-    }
-
-    fn check_state(&self, state: ResState) -> Option<()> {
-        (self.check_state)(state.len(), state.as_ptr())
-            .is_ok
-            .then_some(())
-    }
-}
-
-//TODO: same as for the prev. block
-impl<'msg, I, O> Mod<'msg, I, O> for ExtMod<I, O> {
-    fn apply(
-        &self,
-        input: &I,
-        conf: &ResConfig,
-        state: ResState,
-    ) -> Result<(O, ResState), Cow<'msg, str>> {
-        let conf = conf.as_byte_vec();
-        unsafe {
-            let ret = (self.apply)(
-                ptr::from_ref(input),
-                conf.len(),
-                (conf).as_ptr(),
-                state.len(),
-                state.as_ptr(),
-            );
-            match ret.is_ok {
-                true => Ok((
-                    (ret.item as *const O).read(),
-                    Rc::from(slice::from_raw_parts(ret.msg as *const u8, ret.msg_len)),
-                )),
-                false => Err(CStr::from_ptr(ret.msg).to_string_lossy()),
-            }
-        }
-    }
-}
-
-//TODO: will I use these?
-// ///External note -> note mod
-// pub type ExtNoteMod = ExtMod<Note, Note>;
-// ///External sound -> sound mod
-// pub type ExtSoundMod = ExtMod<ResSound, ResSound>;
-// ///External note -> sound mod
-// pub type ExtInstrument = ExtMod<Note, ResSound>;
 
 ///Mod, along with its configuration and state bundled together for ease of use.
 ///
