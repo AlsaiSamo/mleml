@@ -26,7 +26,6 @@ pub struct ChannelState {
     ///Note's default velocity.
     velocity: u8,
 
-    //TODO: replace with a pipeline
     instrument: InstrumentLump,
     note_mods: Vec<NoteModLump>,
     sound_mods: Vec<SoundModLump>,

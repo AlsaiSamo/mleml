@@ -20,9 +20,14 @@ use std::{
     rc::Rc,
 };
 
+//TODO: issue here is that I define Mods as strict I -> O functions, wiht no I conversion.
+//Specifically, ResSound.
+//I need to do Sound to ResSound conversion only for ExtMods.
+
 use self::ext::ResSound;
 
 type JsonValue = serde_json::Value;
+
 
 ///Flat JSON array of arbitrary values.
 #[derive(Clone, Serialize, Deserialize)]
@@ -125,20 +130,16 @@ impl<'a> ConfigBuilder<'a> {
     ///
     ///If iterable is longer than what is needed, extra values will be unused.
     ///If it is shorter instead, the builder will remain a builder.
-    //TODO: this accepts an owned value, which probably introduces uneccessary copying.
-    //I should only make it copy before writing a value into the end vec.
-    //With that, also make the test pass in a values.iter()
     //TODO: current approach silently discards values that did not fit but
     //returns error on attempt to append to a finished config.
     //SHould it return error on extra values always? Or should it return Ok(0)?
-    pub fn inject<I>(&mut self, values: I) -> Result<usize, ConfigBuilderError>
-    where
-        I: IntoIterator<Item = JsonValue>,
+    pub fn inject<T>(&mut self, values: T) -> Result<usize, ConfigBuilderError>
+        where T: AsRef<[JsonValue]>,
     {
         if let ConfigBuilder::Config(_) = self {
             return Err(ConfigBuilderError::ValueOutsideSchema)
         }
-        let mut values = values.into_iter();
+        let mut values = values.as_ref().iter();
         let mut count = 0;
         while let ConfigBuilder::Builder(build) = self {
             let val = values.next();
@@ -177,13 +178,15 @@ impl<'a> ConfigBuilder<'a> {
 impl<'a> ConfBuilding<'a> {
     ///Checks and appends one item to the unfinished configuration. Ok(true)
     ///signals that the config is full.
-    fn append(&mut self, value: JsonValue) -> Result<bool, ConfigBuilderError> {
+    fn append(&mut self, value: &JsonValue) -> Result<bool, ConfigBuilderError>
+        //where T: AsRef<JsonValue> + Clone
+    {
         if self.schema.as_slice().len() == self.config.as_slice().len() {
             return Err(ConfigBuilderError::ValueOutsideSchema);
         }
         let position = self.config.as_slice().len();
         let current_type = discriminant(&self.schema.as_slice()[position]);
-        let given_type = discriminant(&value);
+        let given_type = discriminant(value);
         if current_type != given_type {
             return Err(ConfigBuilderError::TypeMismatch(
                 position,
@@ -191,7 +194,7 @@ impl<'a> ConfBuilding<'a> {
                 given_type,
             ));
         };
-        self.config.push(value).unwrap();
+        self.config.push(value.clone()).unwrap();
         if position == self.schema.as_slice().len() - 1 {
             Ok(true)
         } else {
@@ -321,6 +324,7 @@ pub trait Platform<'msg>: Resource {
 ///Currently, it is used to define note and sound modifiers and instruments,
 ///which convert from notes to sounds.
 pub trait Mod<'msg, I, O>: Resource {
+
     ///Pure transformation function.
     fn apply(
         &self,
@@ -415,11 +419,11 @@ mod tests {
             config: JsonArray::new(),
         };
         //Correct type is Number, and this is not the last element
-        assert!(conf_building.append(json!(30.3)).is_ok_and(|x| !x));
+        assert!(conf_building.append(&json!(30.3)).is_ok_and(|x| !x));
         //Correct type is String, and this is not the last element
-        assert!(conf_building.append(json!("Very silent")).is_ok_and(|x| !x));
+        assert!(conf_building.append(&json!("Very silent")).is_ok_and(|x| !x));
         //Correct type is Bool, and this is the last element of the config
-        assert!(conf_building.append(json!(false)).is_ok_and(|x| x));
+        assert!(conf_building.append(&json!(false)).is_ok_and(|x| x));
     }
 
     #[test]
@@ -430,13 +434,13 @@ mod tests {
             config: JsonArray::new(),
         };
         //Correct type is Number, and this is not the last element
-        assert!(conf_building.append(json!(30.3)).is_ok_and(|x| !x));
+        assert!(conf_building.append(&json!(30.3)).is_ok_and(|x| !x));
         //Correct type is String, and this is not the last element
-        assert!(conf_building.append(json!("Very silent")).is_ok_and(|x| !x));
+        assert!(conf_building.append(&json!("Very silent")).is_ok_and(|x| !x));
         //Correct type is Bool, and this is the last element of the config
-        assert!(conf_building.append(json!(false)).is_ok_and(|x| x));
+        assert!(conf_building.append(&json!(false)).is_ok_and(|x| x));
         assert!(conf_building
-            .append(json!("extra"))
+            .append(&json!("extra"))
             .is_err_and(|x| x == ConfigBuilderError::ValueOutsideSchema));
     }
 
@@ -450,7 +454,7 @@ mod tests {
         let given_disc = discriminant(&json!("a"));
         let expected_disc = discriminant(&json!(8));
         assert!(conf_building
-            .append(json!("teehee"))
+            .append(&json!("teehee"))
             .is_err_and(|x| x == ConfigBuilderError::TypeMismatch(0, expected_disc, given_disc)));
     }
 

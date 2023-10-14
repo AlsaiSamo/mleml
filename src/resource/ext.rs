@@ -1,10 +1,13 @@
-//TODO: rewrite this doc and others
 //!Resources in form of dynamically loaded libraries using C ABI.
+//!
+//! Warn: do not use this yet.
 //!
 //!Important: this assumes that the loaded code is safe. If it segfaults, it will
 //!take down the rest of the program.
 
-//TODO: write tests and with that fix many things
+//TODO: in the end I need to either automatically convert from Sound to ResSound
+//and back, or I need to make a pipeline that would do the conversions as needed.
+//TODO: tests after that.
 
 use std::{borrow::Cow, ffi::CStr, ptr, rc::Rc, slice};
 use dasp::frame::Stereo;
@@ -47,7 +50,6 @@ impl Sound {
             item.sampling_rate
         )
     }
-
 }
 
 ///FFI-friendly return type for all kinds of messages.

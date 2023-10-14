@@ -46,8 +46,8 @@ mod tests {
         let rc4: Rc<str> = Rc::from(s4);
 
         //Cloned Rc's now have strong count of 2
-        let rc11: Rc<str> = rc1.clone();
-        let rc33: Rc<str> = rc3.clone();
+        let _rc11: Rc<str> = rc1.clone();
+        let _rc33: Rc<str> = rc3.clone();
 
         let mut set: HashSet<Rc<str>> = HashSet::from([rc1, rc2, rc3, rc4]);
         assert_eq!(set.len(), 4);

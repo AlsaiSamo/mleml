@@ -1,4 +1,3 @@
-//TODO: switch to deny
 #![warn(missing_docs)]
 #![feature(ptr_from_ref)]
 #![cfg_attr(feature = "extra", feature(hash_set_entry))]
