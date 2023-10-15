@@ -7,7 +7,8 @@
 //!`I` into `O` (used to create note -> sound pipeline), while `Platform` provides
 //!constraints, sound mixing, and so on.
 
-mod ext;
+//mod ext;
+mod native;
 
 use crate::types::{Note, ReadyNote, Sound};
 use core::fmt;
@@ -19,12 +20,6 @@ use std::{
     mem::{discriminant, Discriminant},
     rc::Rc,
 };
-
-//TODO: issue here is that I define Mods as strict I -> O functions, wiht no I conversion.
-//Specifically, ResSound.
-//I need to do Sound to ResSound conversion only for ExtMods.
-
-use self::ext::ResSound;
 
 type JsonValue = serde_json::Value;
 
@@ -203,7 +198,7 @@ impl<'a> ConfBuilding<'a> {
     }
 }
 
-type ResState = Rc<[u8]>;
+type ResState = [u8];
 
 ///Configuration error.
 #[derive(Eq, PartialEq)]
@@ -245,10 +240,10 @@ pub trait Resource {
     fn id(&self) -> &str;
 
     ///Verify that the given config can be used by the resource.
-    fn check_config(&self, conf: ResConfig) -> Result<(), Cow<'_, str>>;
+    fn check_config(&self, conf: &ResConfig) -> Result<(), Cow<'_, str>>;
 
     ///Verify that the given state can be used by the resource.
-    fn check_state(&self, state: ResState) -> Option<()>;
+    fn check_state(&self, state: &ResState) -> Option<()>;
 
     //fn get_config_schema(&self) -> &ResConfig;
 }
@@ -263,6 +258,7 @@ impl Hash for dyn Resource {
 ///frequency of C-1, acceptable volume range, and more.
 ///
 ///The platform may, for example, allow more channels, if configured to do so.
+#[derive(Clone)]
 #[repr(C)]
 pub struct PlatformValues {
     ///Frequency of C-1. All other note frequencies are derived from it.
@@ -308,8 +304,8 @@ pub trait Platform<'msg>: Resource {
         &self,
         channels: &[Sound],
         conf: &ResConfig,
-        state: ResState,
-    ) -> Result<(Sound, ResState), Cow<'msg, str>>;
+        state: &ResState,
+    ) -> Result<(Sound, Box<ResState>), Cow<'msg, str>>;
 
     //TODO: move this to Resource?
     ///Get platform's description.
@@ -330,8 +326,8 @@ pub trait Mod<'msg, I, O>: Resource {
         &self,
         input: &I,
         conf: &ResConfig,
-        state: ResState,
-    ) -> Result<(O, ResState), Cow<'msg, str>>;
+        state: &ResState,
+    ) -> Result<(O, Box<ResState>), Cow<'msg, str>>;
 }
 
 ///Mod, along with its configuration and state bundled together for ease of use.
@@ -350,17 +346,17 @@ pub struct ResLump<I, O> {
 
 impl<'msg, I, O> ResLump<I, O> {
     ///Use mod's apply() with bundled state and config.
-    pub fn apply(&self, input: I) -> Result<(O, Rc<[u8]>), Cow<'msg, str>> {
-        self.module.apply(&input, &self.conf, self.state.clone())
+    pub fn apply(&self, input: I) -> Result<(O, Box<ResState>), Cow<'msg, str>> {
+        self.module.apply(&input, &self.conf, &self.state)
     }
 }
 
 #[allow(missing_docs)]
 pub type NoteModLump = ResLump<Note, Note>;
 #[allow(missing_docs)]
-pub type SoundModLump = ResLump<ResSound, ResSound>;
+pub type SoundModLump = ResLump<Sound, Sound>;
 #[allow(missing_docs)]
-pub type InstrumentLump = ResLump<ReadyNote, ResSound>;
+pub type InstrumentLump = ResLump<ReadyNote, Sound>;
 
 #[cfg(test)]
 mod tests {
