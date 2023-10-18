@@ -7,8 +7,11 @@
 //!`I` into `O` (used to create note -> sound pipeline), while `Platform` provides
 //!constraints, sound mixing, and so on.
 
+//TODO: return type of mods requires a Box. Maybe we can return Option<Box>,
+// with None meaning that no state change happened?
+
 //mod ext;
-mod native;
+pub mod native;
 
 use crate::types::{Note, ReadyNote, Sound};
 use core::fmt;
@@ -30,12 +33,21 @@ pub struct JsonArray(JsonValue);
 
 impl JsonArray {
     ///Create new, empty JSON array.
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self { 0: json!([]) }
     }
 
+    ///Convert vector of JSON values into JSON array.
+    pub fn from_vec(items: Vec<JsonValue>) -> Option<Self> {
+        match items.iter().any(|x| !(x.is_array() | x.is_object())) {
+            true => Some(Self{0: items.into()}),
+            false => None
+        }
+        //let mut new = Self { 0: json!([]) };
+    }
+
     ///Get elements in a slice.
-    fn as_slice(&self) -> &[JsonValue] {
+    pub fn as_slice(&self) -> &[JsonValue] {
         self.0.as_array().unwrap().as_slice()
     }
 
@@ -282,6 +294,7 @@ pub struct PlatformValues {
     pub channels: u32,
 }
 
+//TODO: rename everywhere Platform into Mixer
 ///Resource that defines the quirks and limitations of a given platform
 ///(usually a sound chip).
 ///
@@ -552,5 +565,4 @@ mod tests {
             Err(e) => assert_eq!(e, ConfigBuilderError::ValueOutsideSchema),
         }
     }
-    //TODO: external mod/platform tests
 }

@@ -1,11 +1,7 @@
 //! Resources that are built into the library.
 
-//TODO: SimpleMod and SimplePlatform, which are constructed from a closure.
-
 use std::borrow::Cow;
-
 use crate::types::Sound;
-
 use super::{JsonArray, Mod, PlatformValues, ResConfig, ResState, Resource, Platform};
 
 fn compare_json_array(reference: &JsonArray, given: &JsonArray) -> bool {
