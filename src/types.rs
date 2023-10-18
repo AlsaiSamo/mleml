@@ -4,6 +4,7 @@ use dasp::frame::Stereo;
 use core::slice;
 use std::num::NonZeroU8;
 
+//TODO: check out todos below and determine if is it good to store post_release here.
 ///Note, defined in platform-friendly values.
 #[derive(Clone)]
 #[repr(C)]
@@ -11,7 +12,13 @@ pub struct Note {
     ///Note's length in ticks. If None, then length needs to be provided externally.
     pub len: Option<NonZeroU8>,
 
-    ///Note's pitch in semitones above C-1, or the note's number in MIDI. If None,
+    ///Time after releasing the note in ticks.
+    pub post_release: u8,
+
+    //TODO: is this correct?
+    //TODO: I probably need to make it an Option<i8>, so that the reader can
+    // just inc/dec on +/-.
+    ///Note's pitch in semitones above C, or the note's number in MIDI mod 12. If None,
     ///then this is a rest.
     pub pitch: Option<NonZeroU8>,
 

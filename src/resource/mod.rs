@@ -210,7 +210,7 @@ impl<'a> ConfBuilding<'a> {
     }
 }
 
-type ResState = [u8];
+pub type ResState = [u8];
 
 ///Configuration error.
 #[derive(Eq, PartialEq)]
@@ -359,8 +359,8 @@ pub struct ResLump<I, O> {
 
 impl<'msg, I, O> ResLump<I, O> {
     ///Use mod's apply() with bundled state and config.
-    pub fn apply(&self, input: I) -> Result<(O, Box<ResState>), Cow<'msg, str>> {
-        self.module.apply(&input, &self.conf, &self.state)
+    pub fn apply(&self, input: &I) -> Result<(O, Box<ResState>), Cow<'msg, str>> {
+        self.module.apply(input, &self.conf, &self.state)
     }
 }
 
