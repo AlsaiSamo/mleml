@@ -7,9 +7,6 @@
 //!`I` into `O` (used to create note -> sound pipeline), while `Platform` provides
 //!constraints, sound mixing, and so on.
 
-//TODO: return type of mods requires a Box. Maybe we can return Option<Box>,
-// with None meaning that no state change happened?
-
 //mod ext;
 pub mod native;
 
@@ -43,7 +40,6 @@ impl JsonArray {
             true => Some(Self{0: items.into()}),
             false => None
         }
-        //let mut new = Self { 0: json!([]) };
     }
 
     ///Get elements in a slice.
@@ -91,10 +87,10 @@ impl fmt::Display for ConfigBuilderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::TypeMismatch(l, e, g) => {
-                write!(f, "Type mismatch at {l}: expected {:?}, got {:?}", e, g)
+                write!(f, "type mismatch at {l}: expected {:?}, got {:?}", e, g)
             }
             Self::ValueOutsideSchema => {
-                write!(f, "Value is not needed as the config is comlete already")
+                write!(f, "value is not needed as the config is comlete already")
             }
         }
     }
@@ -104,6 +100,7 @@ impl fmt::Display for ConfigBuilderError {
 pub struct ConfBuilding<'a> {
     ///Schema of the module.
     schema: &'a ResConfig,
+
     ///Configuration that is being built.
     config: ResConfig,
 }
@@ -155,7 +152,8 @@ impl<'a> ConfigBuilder<'a> {
                 false => {
                     count += 1;
                     match build.append(val.unwrap())? {
-                        //I think this will not be time consuming
+                        //While this is a copy, it should not hurt too much.
+                        //TODO: see if this can be improved
                         true => *self = ConfigBuilder::Config(build.config.to_owned()),
                         false => {}
                     }
@@ -186,7 +184,6 @@ impl<'a> ConfBuilding<'a> {
     ///Checks and appends one item to the unfinished configuration. Ok(true)
     ///signals that the config is full.
     fn append(&mut self, value: &JsonValue) -> Result<bool, ConfigBuilderError>
-        //where T: AsRef<JsonValue> + Clone
     {
         if self.schema.as_slice().len() == self.config.as_slice().len() {
             return Err(ConfigBuilderError::ValueOutsideSchema);
@@ -210,6 +207,9 @@ impl<'a> ConfBuilding<'a> {
     }
 }
 
+///Resource's state
+///
+///Data inside of the state is opaque to everyone except its user.
 pub type ResState = [u8];
 
 ///Configuration error.
@@ -256,8 +256,6 @@ pub trait Resource {
 
     ///Verify that the given state can be used by the resource.
     fn check_state(&self, state: &ResState) -> Option<()>;
-
-    //fn get_config_schema(&self) -> &ResConfig;
 }
 
 impl Hash for dyn Resource {
@@ -294,7 +292,6 @@ pub struct PlatformValues {
     pub channels: u32,
 }
 
-//TODO: rename everywhere Platform into Mixer
 ///Resource that defines the quirks and limitations of a given platform
 ///(usually a sound chip).
 ///

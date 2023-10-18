@@ -1,3 +1,4 @@
+#![warn(missing_docs)]
 //! Resources that are built into the library.
 
 use std::borrow::Cow;
@@ -50,7 +51,6 @@ impl<'msg, I, O> Resource for SimpleMod<'msg, I, O> {
 
     fn check_config(&self, conf: &ResConfig) -> Result<(), Cow<'_, str>> {
         todo!()
-        //compare_json_array(&self.schema, conf).ok_or
     }
 
     fn check_state(&self, state: &ResState) -> Option<()> {
@@ -69,6 +69,9 @@ impl<'msg, I, O> Mod<'msg, I, O> for SimpleMod<'msg, I, O> {
     }
 }
 
+///Simple implementation of a platform.
+///
+///It cannot change the provided values, but it does allow custom mixing functions
 pub struct SimplePlatform<'msg> {
     name: String,
     id: String,

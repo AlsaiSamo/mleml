@@ -14,7 +14,7 @@ use mleml::{
     types::{ReadyNote, Sound},
 };
 use serde_json::json;
-use std::{borrow::Cow, time::Duration, sync::mpsc, fs::{File, OpenOptions}, path::Path, io::Write};
+use std::{borrow::Cow, fs::OpenOptions, path::Path, io::Write};
 
 //Writes a file with pcm_f32le format
 fn main() {

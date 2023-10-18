@@ -7,11 +7,9 @@
 use std::borrow::Cow;
 
 use crate::{
-    resource::{InstrumentLump, NoteModLump, PlatformValues, ResState, SoundModLump},
+    resource::{InstrumentLump, NoteModLump, PlatformValues, SoundModLump},
     types::{Note, ReadyNote, Sound},
 };
-
-//TODO: replace types everywhere with *size where appropriate
 
 pub struct ChannelStateChanges {
     pub note_states: Vec<Box<[u8]>>,
@@ -19,8 +17,6 @@ pub struct ChannelStateChanges {
     pub sound_states: Vec<Box<[u8]>>,
 }
 
-//TODO: replace mods with a pipeline?
-//Note to self: check some prev. commit for the pipeline code
 ///Channel's state at a given point of time.
 ///
 ///This keeps necessary information so that the user does not need to remember anything
@@ -41,7 +37,6 @@ pub struct ChannelState {
     pub length: u8,
 
     ///Instrument (Mod<ReadyNote, Sound).
-    //TODO: do I replace this witha an option? and if None, error that there is no instrument
     pub instrument: InstrumentLump,
     ///Note mods (Mod<Note, Note>)
     pub note_mods: Vec<NoteModLump>,
@@ -71,6 +66,7 @@ impl ChannelState {
         }
     }
 
+    ///Play a note on the channel
     pub fn play(
         &self,
         note: Note,
@@ -78,7 +74,6 @@ impl ChannelState {
     ) -> Result<(Sound, ChannelStateChanges), Cow<'_, str>> {
         let mut note = note;
         let mut note_states: Vec<Box<[u8]>> = Vec::new();
-
         for i in self.note_mods.iter() {
             let new_state: Box<[u8]>;
             (note, new_state) = i.apply(&note)?;
@@ -104,13 +99,11 @@ impl ChannelState {
             velocity: note.velocity,
         };
 
-        let mut ins_state: Box<[u8]>;
+        let ins_state: Box<[u8]>;
         let mut sound: Sound;
-
         (sound, ins_state) = self.instrument.apply(&note)?;
 
         let mut sound_states: Vec<Box<[u8]>> = Vec::new();
-
         for i in self.sound_mods.iter() {
             let new_state: Box<[u8]>;
             (sound, new_state) = i.apply(&sound)?;
@@ -122,7 +115,6 @@ impl ChannelState {
             instrument_state: ins_state,
             sound_states,
         };
-
         Ok((sound, states))
     }
 }
