@@ -108,9 +108,8 @@ fn main() {
         &JsonArray::from_vec(vec![json!(256)]).unwrap(),
         &[]
     ).unwrap().0;
-    let res = mixer.mix(&[square_note, sines_note], &JsonArray::new(), &[]).unwrap();
+    let res = mixer.mix(&[&square_note, &sines_note], &JsonArray::new(), &[]).unwrap();
     let synthesized: Vec<u8> = res.0.data().iter().flatten().flat_map(|x| x.to_le_bytes()).collect();
-    //let mut synthesized: Vec<u8> = res.0.data().iter().flat_map(|x| x.to_le_bytes()).collect();
 
     let path = Path::new("one_sound.pcm");
     let mut file = match OpenOptions::new().write(true).create(true).open(&path) {

@@ -312,7 +312,7 @@ pub trait Platform<'msg>: Resource {
     ///expected by the platform.
     fn mix(
         &self,
-        channels: &[Sound],
+        channels: &[&Sound],
         conf: &ResConfig,
         state: &ResState,
     ) -> Result<(Sound, Box<ResState>), Cow<'msg, str>>;

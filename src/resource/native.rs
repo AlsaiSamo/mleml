@@ -78,7 +78,7 @@ pub struct SimplePlatform<'msg> {
     schema: ResConfig,
     values: PlatformValues,
     description: String,
-    mix: fn(&[Sound], &ResConfig, &ResState) -> Result<(Sound, Box<ResState>), Cow<'msg, str>>,
+    mix: fn(&[&Sound], &ResConfig, &ResState) -> Result<(Sound, Box<ResState>), Cow<'msg, str>>,
 }
 
 impl<'msg> SimplePlatform<'msg> {
@@ -88,7 +88,7 @@ impl<'msg> SimplePlatform<'msg> {
         schema: ResConfig,
         values: PlatformValues,
         description: String,
-        mix: fn(&[Sound], &ResConfig, &ResState) -> Result<(Sound, Box<ResState>), Cow<'msg, str>>,
+        mix: fn(&[&Sound], &ResConfig, &ResState) -> Result<(Sound, Box<ResState>), Cow<'msg, str>>,
     ) -> Self {
         SimplePlatform {
             name,
@@ -126,7 +126,7 @@ impl<'msg> Platform<'msg> for SimplePlatform<'msg> {
 
     fn mix(
         &self,
-        channels: &[Sound],
+        channels: &[&Sound],
         conf: &ResConfig,
         state: &ResState,
     ) -> Result<(Sound, Box<ResState>), Cow<'msg, str>> {
