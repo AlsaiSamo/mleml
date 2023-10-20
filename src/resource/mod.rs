@@ -316,6 +316,10 @@ pub trait Platform<'a, 'msg>: Resource {
     fn mix(
         &self,
         channels: &[(bool, &'a [Stereo<f32>])],
+        //TODO: do I need this? We can instead see if we have hit None on any of the
+        //channels, which would indicate that the sound there had ended and a new one
+        //is going to be played immediately after.
+        //Or will it cause issues if, for example, we intentionally clip one of the sounds?
         play_time: u32,
         conf: &ResConfig,
         state: &ResState,

@@ -11,9 +11,13 @@ use crate::{
     types::{Note, ReadyNote, Sound},
 };
 
+///Intermediary type that holds updated states of the resources in the channel.
 pub struct ChannelStateChanges {
+    #[allow(missing_docs)]
     pub note_states: Vec<Box<[u8]>>,
+    #[allow(missing_docs)]
     pub instrument_state: Box<[u8]>,
+    #[allow(missing_docs)]
     pub sound_states: Vec<Box<[u8]>>,
 }
 
@@ -31,10 +35,13 @@ pub struct ChannelState {
     ///Number of octaves above C-1.
     pub octave: u8,
 
-    ///Default length for a note.
+    ///Default length for a note, in ticks.
     ///
     ///Used if note's length is None.
     pub length: u8,
+
+    ///Duration of the sound after the note has been released, in ticks.
+    pub post_release: u8,
 
     ///Instrument (Mod<ReadyNote, Sound).
     pub instrument: InstrumentLump,
@@ -51,6 +58,7 @@ impl ChannelState {
         volume: u8,
         octave: u8,
         length: u8,
+        post_release: u8,
         instrument: InstrumentLump,
         note_mods: Box<[NoteModLump]>,
         sound_mods: Box<[SoundModLump]>,
@@ -61,6 +69,7 @@ impl ChannelState {
             octave,
             length,
             instrument,
+            post_release,
             note_mods: Vec::from(note_mods),
             sound_mods: Vec::from(sound_mods),
         }
@@ -85,7 +94,7 @@ impl ChannelState {
                 Some(t) => t.get() as f32 * self.tick_length,
                 None => self.length as f32 * self.tick_length,
             },
-            post_release: note.post_release as f32 * self.tick_length,
+            post_release: self.post_release as f32 * self.tick_length,
             pitch: note.pitch.and_then(|semitones| {
                 Some(
                     vals.cccc
@@ -99,9 +108,9 @@ impl ChannelState {
             velocity: note.velocity,
         };
 
-        let ins_state: Box<[u8]>;
+        let instrument_state: Box<[u8]>;
         let mut sound: Sound;
-        (sound, ins_state) = self.instrument.apply(&note)?;
+        (sound, instrument_state) = self.instrument.apply(&note)?;
 
         let mut sound_states: Vec<Box<[u8]>> = Vec::new();
         for i in self.sound_mods.iter() {
@@ -112,7 +121,7 @@ impl ChannelState {
 
         let states = ChannelStateChanges {
             note_states,
-            instrument_state: ins_state,
+            instrument_state,
             sound_states,
         };
         Ok((sound, states))

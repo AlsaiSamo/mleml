@@ -1,4 +1,4 @@
-//!Types that the library operates on.
+//!Main data types that the library uses.
 
 use dasp::frame::Stereo;
 use slice_dst::SliceWithHeader;
