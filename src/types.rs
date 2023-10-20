@@ -11,9 +11,6 @@ pub struct Note {
     ///Note's length in ticks. If None, then length needs to be provided externally.
     pub len: Option<NonZeroU8>,
 
-    ///Time after releasing the note in ticks.
-    pub post_release: u8,
-
     ///Note's pitch in semitones above C, or the note's number in MIDI mod 12. If None,
     ///then this is a rest.
     pub pitch: Option<NonZeroU8>,
@@ -61,5 +58,11 @@ impl Sound {
     ///Get data.
     pub fn data(&self) -> &[Stereo<f32>] {
         self.0.slice.as_ref()
+    }
+}
+
+impl std::convert::AsRef<[Stereo<f32>]> for Sound {
+    fn as_ref(&self) -> &[Stereo<f32>] {
+        self.data()
     }
 }

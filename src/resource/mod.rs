@@ -12,6 +12,7 @@ pub mod native;
 
 use crate::types::{Note, ReadyNote, Sound};
 use core::fmt;
+use dasp::frame::Stereo;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, to_vec};
 use std::{
@@ -20,6 +21,8 @@ use std::{
     mem::{discriminant, Discriminant},
     rc::Rc,
 };
+
+use self::native::SimplePlatform;
 
 type JsonValue = serde_json::Value;
 
@@ -70,7 +73,7 @@ impl Hash for JsonArray {
     }
 }
 
-type ResConfig = JsonArray;
+pub type ResConfig = JsonArray;
 
 ///Error encountered while building configuration.
 #[derive(Eq, PartialEq, Debug)]
@@ -301,7 +304,7 @@ pub struct PlatformValues {
 ///It should be noted that platform cannot influence what selection of modules
 ///is used for any of the channels, or their order. Please be careful when
 ///mimicking output of a sound chip.
-pub trait Platform<'msg>: Resource {
+pub trait Platform<'a, 'msg>: Resource {
     ///Get platform values.
     fn get_vals(&self) -> PlatformValues;
 
@@ -312,10 +315,11 @@ pub trait Platform<'msg>: Resource {
     ///expected by the platform.
     fn mix(
         &self,
-        channels: &[&Sound],
+        channels: &[(bool, &'a [Stereo<f32>])],
+        play_time: u32,
         conf: &ResConfig,
         state: &ResState,
-    ) -> Result<(Sound, Box<ResState>), Cow<'msg, str>>;
+    ) -> Result<(Sound, Box<ResState>, Box<[Option<&'a [Stereo<f32>]>]>),Cow<'msg, str>>;
 
     //TODO: move this to Resource?
     ///Get platform's description.

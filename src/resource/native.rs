@@ -2,6 +2,8 @@
 //! Resources that are built into the library.
 
 use std::borrow::Cow;
+use dasp::frame::Stereo;
+
 use crate::types::Sound;
 use super::{JsonArray, Mod, PlatformValues, ResConfig, ResState, Resource, Platform};
 
@@ -72,23 +74,23 @@ impl<'msg, I, O> Mod<'msg, I, O> for SimpleMod<'msg, I, O> {
 ///Simple implementation of a platform.
 ///
 ///It cannot change the provided values, but it does allow custom mixing functions
-pub struct SimplePlatform<'msg> {
+pub struct SimplePlatform<'a, 'msg> {
     name: String,
     id: String,
     schema: ResConfig,
     values: PlatformValues,
     description: String,
-    mix: fn(&[&Sound], &ResConfig, &ResState) -> Result<(Sound, Box<ResState>), Cow<'msg, str>>,
+    mix: fn(&[(bool, &'a [Stereo<f32>])], u32, &ResConfig, &ResState) -> Result<(Sound, Box<ResState>, Box<[Option<&'a [Stereo<f32>]>]>), Cow<'msg, str>>,
 }
 
-impl<'msg> SimplePlatform<'msg> {
+impl<'a, 'msg> SimplePlatform<'a, 'msg> {
     pub fn new(
         name: String,
         id: String,
         schema: ResConfig,
         values: PlatformValues,
         description: String,
-        mix: fn(&[&Sound], &ResConfig, &ResState) -> Result<(Sound, Box<ResState>), Cow<'msg, str>>,
+        mix: fn(&[(bool, &'a [Stereo<f32>])], u32, &ResConfig, &ResState) -> Result<(Sound, Box<ResState>, Box<[Option<&'a [Stereo<f32>]>]>), Cow<'msg, str>>,
     ) -> Self {
         SimplePlatform {
             name,
@@ -101,7 +103,7 @@ impl<'msg> SimplePlatform<'msg> {
     }
 }
 
-impl<'msg> Resource for SimplePlatform<'msg> {
+impl<'a, 'msg> Resource for SimplePlatform<'a, 'msg> {
     fn orig_name(&self) -> Option<Cow<'_, str>> {
         Some(Cow::Borrowed(self.name.as_str()))
     }
@@ -119,18 +121,19 @@ impl<'msg> Resource for SimplePlatform<'msg> {
     }
 }
 
-impl<'msg> Platform<'msg> for SimplePlatform<'msg> {
+impl<'a, 'msg> Platform<'a, 'msg> for SimplePlatform<'a, 'msg> {
     fn get_vals(&self) -> PlatformValues {
         self.values.clone()
     }
 
     fn mix(
         &self,
-        channels: &[&Sound],
+        channels: &[(bool, &'a [Stereo<f32>])],
+        play_time: u32,
         conf: &ResConfig,
         state: &ResState,
-    ) -> Result<(Sound, Box<ResState>), Cow<'msg, str>> {
-        (self.mix)(channels, conf, state)
+    ) -> Result<(Sound, Box<ResState>, Box<[Option<&'a [Stereo<f32>]>]>), Cow<'msg, str>> {
+        (self.mix)(channels, play_time, conf, state)
     }
 
     fn description(&self) -> String {
