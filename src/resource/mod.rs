@@ -56,6 +56,11 @@ impl JsonArray {
         self.0.as_array().unwrap().as_slice()
     }
 
+    ///Get array's length.
+    pub fn len(&self) -> usize {
+        self.0.as_array().unwrap().len()
+    }
+
     ///Serialize into byte vector.
     fn as_byte_vec(&self) -> Vec<u8> {
         to_vec(&self.0).unwrap()
@@ -266,6 +271,9 @@ pub trait Resource {
 
     ///Verify that the given state can be used by the resource.
     fn check_state(&self, state: &ResState) -> Option<()>;
+
+    ///Get resource's description.
+    fn description(&self) -> &str;
 }
 
 impl Hash for dyn Resource {
@@ -331,13 +339,6 @@ pub trait Platform<'a, 'msg>: Resource {
         conf: &ResConfig,
         state: &ResState,
     ) -> Result<(Sound, Box<ResState>, Box<[Option<&'a [Stereo<f32>]>]>),Cow<'msg, str>>;
-
-    //TODO: move this to Resource?
-    ///Get platform's description.
-    ///
-    ///This may be used to provide any message, for example, the order of channels,
-    ///and how they are going to be mixed.
-    fn description(&self) -> String;
 }
 
 ///A resource that is used in data transformations.

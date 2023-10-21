@@ -105,6 +105,7 @@ fn main() {
                     ))
                 }
             },
+            |_| true,
         );
     let note = ReadyNote {
         len: 2.0,
