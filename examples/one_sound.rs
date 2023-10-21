@@ -25,8 +25,8 @@ fn main() {
         "Square wave generator".to_owned(),
         //This should be some random string but eh
         "SQUARE".to_owned(),
+        "Square wave generator".to_owned(),
         //No config
-        //JsonArray::from_vec(vec![]).unwrap(),
         JsonArray::new(),
         |input, _conf, _state| match input.pitch {
             Some(hz) => {
@@ -45,6 +45,7 @@ fn main() {
     let two_sine: SimpleMod<ReadyNote, Sound> = SimpleMod::new(
         "Sine modulated with sine".to_owned(),
         "TWO_SINES".to_owned(),
+        "Sine modulated with another sine".to_owned(),
         //Modulating sine's frequency
         JsonArray::from_vec(vec![json!(440)]).unwrap(),
         |input, conf, _state| -> Result<(Sound, Box<[u8]>), std::borrow::Cow<'_, str>> {
@@ -73,6 +74,7 @@ fn main() {
         SimplePlatform::new(
             "Two channel addition".to_owned(),
             "MIXER".to_owned(),
+            "Adds two channels together crudely".to_owned(),
             JsonArray::new(),
             PlatformValues {
                 cccc: 8.0,

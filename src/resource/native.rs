@@ -1,11 +1,17 @@
 #![warn(missing_docs)]
 //! Resources that are built into the library.
+//!
+//! Currently, only `SimpleMod` and `SimplePlatform` are provided, which may not offer
+//! some functionality, like changing PlatformValues.
 
-use std::borrow::Cow;
 use dasp::frame::Stereo;
+use std::{
+    borrow::Cow,
+    mem::{discriminant, Discriminant},
+};
 
+use super::{JsonArray, Mod, Platform, PlatformValues, ResConfig, ResState, Resource};
 use crate::types::Sound;
-use super::{JsonArray, Mod, PlatformValues, ResConfig, ResState, Resource, Platform};
 
 fn compare_json_array(reference: &JsonArray, given: &JsonArray) -> bool {
     todo!()
@@ -73,7 +79,7 @@ impl<'msg, I, O> Mod<'msg, I, O> for SimpleMod<'msg, I, O> {
 
 ///Simple implementation of a platform.
 ///
-///It cannot change the provided values, but it does allow custom mixing functions
+///It cannot change the provided values.
 pub struct SimplePlatform<'a, 'msg> {
     name: String,
     id: String,

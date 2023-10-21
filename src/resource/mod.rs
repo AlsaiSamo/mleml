@@ -1,11 +1,15 @@
 #![warn(missing_docs)]
-//!Configurable, stateful providers of pure functions.
+//!Resources provide stateless functions that can be configured.
 //!
-//!Configuration is done via flat JSON array.
+//!Configuration is done via flat JSON array. Function's state between calls
+//! is given, received and stored by the program, so that the function can be pure.
 //!
 //!Two types of resources are currently provided: `Mod<'msg, I, O>` transforms
 //!`I` into `O` (used to create note -> sound pipeline), while `Platform` provides
-//!constraints, sound mixing, and so on.
+//!constraints and sound mixing.
+
+//TODO: use rc_slice2 crate? It allows creating subslices which can also be Rc's,
+// which would probably simplify platform mixer.
 
 //mod ext;
 pub mod native;
@@ -22,12 +26,13 @@ use std::{
     rc::Rc,
 };
 
-use self::native::SimplePlatform;
 
 type JsonValue = serde_json::Value;
 
 
 ///Flat JSON array of arbitrary values.
+///
+///Array's flatness makes it much easier to parse.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct JsonArray(JsonValue);
 
@@ -37,7 +42,8 @@ impl JsonArray {
         Self { 0: json!([]) }
     }
 
-    ///Convert vector of JSON values into JSON array.
+    ///Convert vector of JSON values into JSON array, as long as no value is an array
+    /// or an object.
     pub fn from_vec(items: Vec<JsonValue>) -> Option<Self> {
         match items.iter().any(|x| !(x.is_array() | x.is_object())) {
             true => Some(Self{0: items.into()}),
@@ -45,7 +51,7 @@ impl JsonArray {
         }
     }
 
-    ///Get elements in a slice.
+    ///Get elements of the array as a slice.
     pub fn as_slice(&self) -> &[JsonValue] {
         self.0.as_array().unwrap().as_slice()
     }
@@ -55,7 +61,7 @@ impl JsonArray {
         to_vec(&self.0).unwrap()
     }
 
-    ///Push item into the array as long as the item is not an array or a map.
+    ///Push item into the array as long as the item is not an array or an object.
     fn push(&mut self, item: JsonValue) -> Option<()> {
         match item.is_array() | item.is_object() {
             true => None,
@@ -73,6 +79,7 @@ impl Hash for JsonArray {
     }
 }
 
+///Resource's configuration.
 pub type ResConfig = JsonArray;
 
 ///Error encountered while building configuration.
@@ -136,7 +143,7 @@ impl<'a> ConfigBuilder<'a> {
     ///all items were appended, or an error occurs.
     ///
     ///If iterable is longer than what is needed, extra values will be unused.
-    ///If it is shorter instead, the builder will remain a builder.
+    ///If it is shorter instead, the builder will continue to be a builder.
     //TODO: current approach silently discards values that did not fit but
     //returns error on attempt to append to a finished config.
     //SHould it return error on extra values always? Or should it return Ok(0)?
@@ -210,7 +217,7 @@ impl<'a> ConfBuilding<'a> {
     }
 }
 
-///Resource's state
+///Resource's state.
 ///
 ///Data inside of the state is opaque to everyone except its user.
 pub type ResState = [u8];
