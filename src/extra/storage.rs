@@ -1,5 +1,4 @@
-//!Extra things to help with storing data.
-
+//! Extras aimed at storing common items.
 use std::collections::HashSet;
 use std::{hash::Hash, rc::Rc};
 

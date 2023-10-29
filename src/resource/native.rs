@@ -7,7 +7,7 @@
 use dasp::frame::Stereo;
 use std::{
     borrow::Cow,
-    mem::{discriminant, Discriminant},
+    mem::discriminant,
 };
 
 use super::{JsonArray, Mod, Platform, PlatformValues, ResConfig, ResState, Resource};
@@ -37,6 +37,7 @@ pub struct SimpleMod<'msg, I, O> {
 }
 
 impl<'msg, I, O> SimpleMod<'msg, I, O> {
+    ///Create new SimpleMod.
     pub fn new(
         name: String,
         id: String,
@@ -101,7 +102,6 @@ pub struct SimplePlatform<'a, 'msg> {
     desc: String,
     schema: ResConfig,
     values: PlatformValues,
-    description: String,
     mix: fn(
         &[(bool, &'a [Stereo<f32>])],
         u32,
@@ -113,13 +113,13 @@ pub struct SimplePlatform<'a, 'msg> {
 }
 
 impl<'a, 'msg> SimplePlatform<'a, 'msg> {
+    ///Create new SimplePlatform.
     pub fn new(
         name: String,
         id: String,
         desc: String,
         schema: ResConfig,
         values: PlatformValues,
-        description: String,
         mix: fn(
             &[(bool, &'a [Stereo<f32>])],
             u32,
@@ -135,7 +135,6 @@ impl<'a, 'msg> SimplePlatform<'a, 'msg> {
             desc,
             schema,
             values,
-            description,
             mix,
             check_state
         }

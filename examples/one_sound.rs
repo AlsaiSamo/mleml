@@ -28,17 +28,17 @@ fn main() {
         "Square wave generator".to_owned(),
         //No config
         JsonArray::new(),
-        |input, _conf, _state| match input.pitch {
+        |input, _conf, _state| -> Result<(Sound, Box<[u8]>), Cow<'_, str>> {match input.pitch {
             Some(hz) => {
                 let signal = signal::rate(48000.0).const_hz(hz.into()).square();
                 let data = signal
                     .take((input.len * 48000.0).ceil() as usize)
-                    .map(|x| [x as f32, x as f32])
+                    .map(|x: f64| [x as f32, x as f32])
                     .collect();
                 Ok((Sound::new(data, 48000), Box::new([])))
             }
             None => todo!(),
-        },
+        }},
         //No state -> all state is good
         |_| true,
     );
@@ -52,11 +52,13 @@ fn main() {
             match input.pitch {
                 Some(hz) => {
                     //Modulating wave
-                    let s1 = signal::rate(48000.0).const_hz(hz.into()).sine();
+                    let s1 = signal::rate(48000.0).const_hz(hz.into()).sine().scale_amp(0.5).offset_amp(1.0);
                     //Carrier wave
                     let s2 = signal::rate(48000.0)
                         .const_hz(conf.as_slice()[0].as_f64().unwrap())
-                        .sine();
+                        .sine()
+                        .scale_amp(0.5)
+                        .offset_amp(1.0);
                     let interp = Linear::new(0.0, 1.0);
                     let out = s2
                         .mul_hz(interp, s1)
@@ -84,7 +86,6 @@ fn main() {
                 max_volume: 255,
                 channels: 2,
             },
-            "Just adds two channels together".to_owned(),
             for<'a, 'b, 'c, 'd, 'e> |input: &'b [(bool, &'a [Stereo<f32>])],
                      _play: u32,
                      _conf: &'c ResConfig,
@@ -110,7 +111,7 @@ fn main() {
     let note = ReadyNote {
         len: 2.0,
         post_release: 0.0,
-        pitch: Some(962.0),
+        pitch: Some(440.0),
         velocity: 128,
     };
     let square_note = square.apply(&note, &JsonArray::new(), &[]).unwrap().0;

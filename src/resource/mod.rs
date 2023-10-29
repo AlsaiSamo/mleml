@@ -7,6 +7,9 @@
 //!Two types of resources are currently provided: `Mod<'msg, I, O>` transforms
 //!`I` into `O` (used to create note -> sound pipeline), while `Platform` provides
 //!constraints and sound mixing.
+//!
+//TODO: explain what modifiers can be used for what (transposing and key signature in
+// note mods, panning, LFO and other things in sound mods)
 
 //TODO: use rc_slice2 crate? It allows creating subslices which can also be Rc's,
 // which would probably simplify platform mixer.
