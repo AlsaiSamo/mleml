@@ -1,6 +1,4 @@
 //! Collection of example resources, which can be used themselves or as references.
-//!
-//! These resources loosely match capabilities of YM2608.
 
 use crate::{
     resource::{Mod, ResConfig, ResState, Resource},
@@ -9,7 +7,7 @@ use crate::{
 use dasp::{
     interpolate::linear::Linear,
     signal::{self, ConstHz, FromIterator, MulAmp, Saw, Sine, Take, UntilExhausted},
-    Signal,
+    Signal, Frame,
 };
 use serde_json::Value as JsonValue;
 use std::{
@@ -29,8 +27,8 @@ impl Signal for Wave {
 
     fn next(&mut self) -> Self::Frame {
         match self {
-            Wave::Sine(w) => w.next(),
-            Wave::Saw(w) => w.next(),
+            Wave::Sine(w) => w.next().map(clamp_f64_to_i8),
+            Wave::Saw(w) => w.next().map(clamp_f64_to_i8),
         }
     }
 }
@@ -52,9 +50,7 @@ impl<S: Signal> Iterator for IterSignal<S> {
     }
 }
 
-///Four-operator FM synthesizer.
-///
-/// It does not produce good sound.
+///Example four-operator FM synthesizer.
 pub struct FourOpFm {}
 
 impl Resource for FourOpFm {
@@ -137,7 +133,7 @@ impl<'msg> Mod<'msg, ReadyNote, Sound> for FourOpFm {
                 let op3 = op3.mul_hz(linear(), op2.offset_amp(1.0));
                 let out = op3.map(|x| [x as f32, x as f32]);
                 let time = ((input.len + input.post_release) * 48000.0) as usize;
-                Ok((Sound::new(out.take(time).collect(), 48000), Box::new([])))
+                Ok((Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000), Box::new([])))
             }
             //Operators 0 and 1 modulate 2, which goes into 3
             1 => {
@@ -146,8 +142,7 @@ impl<'msg> Mod<'msg, ReadyNote, Sound> for FourOpFm {
                 let op3 = op3.mul_hz(linear(), op2.offset_amp(1.0));
                 let out = op3.map(|x| [x as f32, x as f32]);
                 let time = ((input.len + input.post_release) * 48000.0) as usize;
-
-                Ok((Sound::new(out.take(time).collect(), 48000), Box::new([])))
+                Ok((Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000), Box::new([])))
             }
             //Operator 1 modulates 2, 0 and 2 go into 3
             2 => {
@@ -156,7 +151,7 @@ impl<'msg> Mod<'msg, ReadyNote, Sound> for FourOpFm {
                 let op3 = op3.mul_hz(linear(), op2.offset_amp(1.0));
                 let out = op3.map(|x| [x as f32, x as f32]);
                 let time = ((input.len + input.post_release) * 48000.0) as usize;
-                Ok((Sound::new(out.take(time).collect(), 48000), Box::new([])))
+                Ok((Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000), Box::new([])))
             }
             //Operator 0 modulates 1, 1 and 2 go into 3
             3 => {
@@ -165,7 +160,7 @@ impl<'msg> Mod<'msg, ReadyNote, Sound> for FourOpFm {
                 let op3 = op3.mul_hz(linear(), op2.offset_amp(1.0));
                 let out = op3.map(|x| [x as f32, x as f32]);
                 let time = ((input.len + input.post_release) * 48000.0) as usize;
-                Ok((Sound::new(out.take(time).collect(), 48000), Box::new([])))
+                Ok((Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000), Box::new([])))
             }
             //Two lines (0 into 1, 2 into 3)
             4 => {
@@ -174,7 +169,7 @@ impl<'msg> Mod<'msg, ReadyNote, Sound> for FourOpFm {
                 let out = op3.add_amp(op1);
                 let out = out.map(|x| [x as f32, x as f32]);
                 let time = ((input.len + input.post_release) * 48000.0) as usize;
-                Ok((Sound::new(out.take(time).collect(), 48000), Box::new([])))
+                Ok((Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000), Box::new([])))
             }
             //0 goes into 1, 2 and 3
             5 => {
@@ -190,7 +185,7 @@ impl<'msg> Mod<'msg, ReadyNote, Sound> for FourOpFm {
                 let out = op3.add_amp(op1).add_amp(op2).scale_amp(0.333);
                 let out = out.map(|x| [x as f32, x as f32]);
                 let time = ((input.len + input.post_release) * 48000.0) as usize;
-                Ok((Sound::new(out.take(time).collect(), 48000), Box::new([])))
+                Ok((Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000), Box::new([])))
             }
             //0 goes into 1
             6 => {
@@ -198,14 +193,14 @@ impl<'msg> Mod<'msg, ReadyNote, Sound> for FourOpFm {
                 let out = op3.add_amp(op1).add_amp(op2).scale_amp(0.333);
                 let out = out.map(|x| [x as f32, x as f32]);
                 let time = ((input.len + input.post_release) * 48000.0) as usize;
-                Ok((Sound::new(out.take(time).collect(), 48000), Box::new([])))
+                Ok((Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000), Box::new([])))
             }
             //No modulation
             7 => {
                 let out = op3.add_amp(op1).add_amp(op2).add_amp(op0).scale_amp(0.25);
                 let out = out.map(|x| [x as f32, x as f32]);
                 let time = ((input.len + input.post_release) * 48000.0) as usize;
-                Ok((Sound::new(out.take(time).collect(), 48000), Box::new([])))
+                Ok((Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000), Box::new([])))
             }
             _ => unreachable!(),
         }
@@ -388,4 +383,14 @@ fn get_bool_value(val: &JsonValue) -> Result<bool, Cow<'static, str>> {
         Some(x) => Ok(x),
         None => Err(Cow::Owned(format!("extracted value is not bool"))),
     }
+}
+
+fn clamp_f64_to_i8(f: f64) -> f64 {
+    //I11::new((f * 1024.0) as i16).unwrap().inner() as f64
+    //(((f * 32768.0) as i16 )) as f64 / 32768.0
+    (((f * 512.0) as i8 )) as f64 / 512.0
+}
+
+fn clamp_frame_to_i8(f: [f32; 2]) -> [f32; 2] {
+    [(((f[0] * 512.0) as i8 )) as f32 / 512.0, (((f[1] * 512.0) as i8 )) as f32 / 512.0]
 }
