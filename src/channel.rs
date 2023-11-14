@@ -79,6 +79,7 @@ impl ChannelState {
     pub fn play(
         &self,
         note: Note,
+        //Should I instead only pass in cccc?
         vals: &PlatformValues,
     ) -> Result<(Sound, ChannelStateChanges), Cow<'_, str>> {
         let mut note = note;
@@ -95,16 +96,12 @@ impl ChannelState {
                 None => self.length as f32 * self.tick_length,
             },
             post_release: self.post_release as f32 * self.tick_length,
-            pitch: note.pitch.and_then(|semitones| {
-                Some(
-                    vals.cccc
+            pitch: note.pitch.map(|semitones| vals.cccc
                         * 2.0_f32.powf(
                             1.0 + (semitones.get() as f32) / 12.0
                                 + (note.cents as f32) / 1200.0
                                 + self.octave as f32,
-                        ),
-                )
-            }),
+                        )),
             velocity: note.velocity,
         };
 

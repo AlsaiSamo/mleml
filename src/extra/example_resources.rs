@@ -71,14 +71,14 @@ impl Resource for FourOpFm {
         get_int_value(&conf[0], 0, 7)?;
         get_bool_value(&conf[1])?;
         for op in 0..4 {
-            get_int_value(&conf[2 + 8 * op], 0, 511)? as i16;
-            get_int_value(&conf[3 + 8 * op], 0, 511)? as i16;
-            get_int_value(&conf[4 + 8 * op], 0, 511)? as i16;
-            get_int_value(&conf[5 + 8 * op], 0, 511)? as i16;
-            get_int_value(&conf[6 + 8 * op], 0, 127)? as i8;
-            get_int_value(&conf[7 + 8 * op], 0, 127)? as i8;
-            get_int_value(&conf[8 + 8 * op], 0, 31)? as i8;
-            get_int_value(&conf[9 + 8 * op], -511, 511)? as i16;
+            get_int_value(&conf[2 + 8 * op], 0, 511)?;
+            get_int_value(&conf[3 + 8 * op], 0, 511)?;
+            get_int_value(&conf[4 + 8 * op], 0, 511)?;
+            get_int_value(&conf[5 + 8 * op], 0, 511)?;
+            get_int_value(&conf[6 + 8 * op], 0, 127)?;
+            get_int_value(&conf[7 + 8 * op], 0, 127)?;
+            get_int_value(&conf[8 + 8 * op], 0, 31)?;
+            get_int_value(&conf[9 + 8 * op], -511, 511)?;
         }
         Ok(())
     }
@@ -99,7 +99,7 @@ impl<'msg> Mod<'msg, ReadyNote, Sound> for FourOpFm {
         conf: &ResConfig,
         _: &[u8],
     ) -> Result<(Sound, Box<ResState>), Cow<'msg, str>> {
-        if input.pitch == None {
+        if input.pitch.is_none() {
             let len = ((input.len + input.post_release) * 48000.0) as usize;
             let data: Box<[[f32; 2]]> = vec![[0.0, 0.0]; len].into_boxed_slice();
             return Ok((Sound::new(data, 48000), Box::new([])));
@@ -336,7 +336,7 @@ fn play_fn_operator(
         if count <= 0 {
             None
         } else {
-            Some(count as f64 / release_frames * release_level as f64)
+            Some(count as f64 / release_frames * release_level)
         }
     });
 
@@ -374,14 +374,14 @@ fn get_int_value(val: &JsonValue, lower: i64, upper: i64) -> Result<i64, Cow<'st
             ))),
             _ => Ok(x),
         },
-        None => Err(Cow::Owned(format!("extracted value is not integer"))),
+        None => Err(Cow::Owned("extracted value is not integer".to_string())),
     }
 }
 
 fn get_bool_value(val: &JsonValue) -> Result<bool, Cow<'static, str>> {
     match val.as_bool() {
         Some(x) => Ok(x),
-        None => Err(Cow::Owned(format!("extracted value is not bool"))),
+        None => Err(Cow::Owned("extracted value is not bool".to_string())),
     }
 }
 

@@ -14,12 +14,7 @@ use super::{JsonArray, Mod, Platform, PlatformValues, ResConfig, ResState, Resou
 use crate::types::Sound;
 
 fn json_array_find_deviation(reference: &JsonArray, given: &JsonArray) -> Option<usize> {
-    for i in 0..given.len() {
-        if discriminant(&reference.as_slice()[i]) != discriminant(&given.as_slice()[i]) {
-            return Some(i);
-        }
-    }
-    None
+    (0..given.len()).find(|&i| discriminant(&reference.as_slice()[i]) != discriminant(&given.as_slice()[i]))
 }
 
 ///Simple implementation of a module that is easy to initialise and use.

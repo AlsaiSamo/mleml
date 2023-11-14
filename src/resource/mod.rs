@@ -39,6 +39,12 @@ type JsonValue = serde_json::Value;
 #[derive(Clone, Serialize, Deserialize)]
 pub struct JsonArray(JsonValue);
 
+impl Default for JsonArray {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl JsonArray {
     ///Create new, empty JSON array.
     pub fn new() -> Self {
@@ -49,7 +55,7 @@ impl JsonArray {
     /// or an object.
     pub fn from_vec(items: Vec<JsonValue>) -> Option<Self> {
         match items.iter().any(|x| !(x.is_array() | x.is_object())) {
-            true => Some(Self{0: items.into()}),
+            true => Some(Self(items.into())),
             false => None
         }
     }
@@ -75,7 +81,7 @@ impl JsonArray {
             true => None,
             _ => {
                 self.0.as_array_mut().unwrap().push(item);
-                return Some(());
+                Some(())
             }
         }
     }
@@ -137,7 +143,7 @@ pub enum ConfigBuilder<'a> {
 impl<'a> ConfigBuilder<'a> {
     ///Create new config builder from given schema.
     pub fn new(schema: &'a ResConfig) -> ConfigBuilder {
-        if schema.as_slice().len() == 0 {
+        if schema.as_slice().is_empty() {
             return ConfigBuilder::Config(ResConfig::new());
         } else {
             return ConfigBuilder::Builder(ConfBuilding {
@@ -178,7 +184,7 @@ impl<'a> ConfigBuilder<'a> {
                 }
             }
         }
-        return Ok(count);
+        Ok(count)
     }
 
     /// Returns `true` if the config builder is [`Builder`].

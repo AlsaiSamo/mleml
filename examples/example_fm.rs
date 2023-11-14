@@ -24,7 +24,7 @@ fn main() {
         .collect();
 
     let path = Path::new("example_fm.pcm");
-    let mut file = match OpenOptions::new().write(true).create(true).open(&path) {
+    let mut file = match OpenOptions::new().write(true).create(true).open(path) {
         Ok(file) => file,
         Err(e) => panic!("couldn't open {}: {}", path.display(), e),
     };
