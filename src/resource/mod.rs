@@ -18,10 +18,10 @@
 pub mod native;
 
 use crate::types::{Note, ReadyNote, Sound};
-use core::fmt;
 use dasp::frame::Stereo;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, to_vec};
+use thiserror::Error;
 use std::{
     borrow::Cow,
     hash::{Hash, Hasher},
@@ -97,27 +97,15 @@ impl Hash for JsonArray {
 pub type ResConfig = JsonArray;
 
 ///Error encountered while building configuration.
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Error, Debug, PartialEq, Eq)]
 pub enum ConfigBuilderError {
     ///Provided type does not match the type defined in the schema.
+    #[error("type mismatch at {0}: expected {1:?}, got {2:?}")]
     TypeMismatch(usize, Discriminant<JsonValue>, Discriminant<JsonValue>),
 
-    ///Configuration's length matches the schema's, so the provided value
-    ///cannot fit.
+    ///Extra value is supplied to configuration that is already fully built.
+    #[error("value outside schema")]
     ValueOutsideSchema,
-}
-
-impl fmt::Display for ConfigBuilderError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::TypeMismatch(l, e, g) => {
-                write!(f, "type mismatch at {l}: expected {:?}, got {:?}", e, g)
-            }
-            Self::ValueOutsideSchema => {
-                write!(f, "value is not needed as the config is comlete already")
-            }
-        }
-    }
 }
 
 ///Unfinished configuration builder (not all values were provided).
@@ -237,28 +225,22 @@ impl<'a> ConfBuilding<'a> {
 pub type ResState = [u8];
 
 ///Configuration error.
-#[derive(Eq, PartialEq)]
+#[derive(Error, Debug, Eq, PartialEq)]
 pub enum ConfigError {
     ///Unexpected type of value.
     //TODO: discriminant's debug output is Discriminant(int). Replace with something else.
+    #[error("type mismatch at {0}: expected {1:?}, got {2:?}")]
     BadValue(u32, Discriminant<JsonValue>, Discriminant<JsonValue>),
 
     ///Incorrect length.
+    #[error("length mismatch: expected {0}, got {1}")]
     BadLength(u32, u32),
 }
 
-impl fmt::Display for ConfigError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::BadValue(l, e, g) => {
-                write!(f, "Type mismatch at {l}: expected {:?}, got {:?}", e, g)
-            }
-            Self::BadLength(e, g) => {
-                write!(f, "Length mismatch: expected {}, got {}", e, g)
-            }
-        }
-    }
-}
+/// Arbitrary error message for resources.
+#[derive(Error, Debug)]
+#[error("resource error: {0}")]
+pub struct StringError(pub String);
 
 ///Base trait for any resource.
 ///
@@ -276,7 +258,7 @@ pub trait Resource {
     fn id(&self) -> &str;
 
     ///Verify that the given config can be used by the resource.
-    fn check_config(&self, conf: &ResConfig) -> Result<(), Cow<'_, str>>;
+    fn check_config(&self, conf: &ResConfig) -> Result<(), StringError>;
 
     ///Verify that the given state can be used by the resource.
     fn check_state(&self, state: &ResState) -> Option<()>;
@@ -328,7 +310,7 @@ pub struct PlatformValues {
 ///It should be noted that platform cannot influence what selection of modules
 ///is used for any of the channels, or their order. Please be careful when
 ///mimicking output of a sound chip.
-pub trait Platform<'a, 'msg>: Resource {
+pub trait Platform<'a>: Resource {
     ///Get platform values.
     fn get_vals(&self) -> PlatformValues;
 
@@ -347,14 +329,14 @@ pub trait Platform<'a, 'msg>: Resource {
         play_time: u32,
         conf: &ResConfig,
         state: &ResState,
-    ) -> Result<(Sound, Box<ResState>, Box<[Option<&'a [Stereo<f32>]>]>),Cow<'msg, str>>;
+    ) -> Result<(Sound, Box<ResState>, Box<[Option<&'a [Stereo<f32>]>]>),StringError>;
 }
 
 ///A resource that is used in data transformations.
 ///
 ///Currently, it is used to define note and sound modifiers and instruments,
 ///which convert from notes to sounds.
-pub trait Mod<'msg, I, O>: Resource {
+pub trait Mod<I, O>: Resource {
 
     ///Pure transformation function.
     fn apply(
@@ -362,7 +344,7 @@ pub trait Mod<'msg, I, O>: Resource {
         input: &I,
         conf: &ResConfig,
         state: &ResState,
-    ) -> Result<(O, Box<ResState>), Cow<'msg, str>>;
+    ) -> Result<(O, Box<ResState>), StringError>;
 }
 
 ///Mod, along with its configuration and state bundled together for ease of use.
@@ -372,7 +354,7 @@ pub trait Mod<'msg, I, O>: Resource {
 #[derive(Clone)]
 pub struct ResLump<I, O> {
     #[allow(missing_docs)]
-    pub module: Rc<dyn for<'a> Mod<'a, I, O>>,
+    pub module: Rc<dyn for<'a> Mod<I, O>>,
     #[allow(missing_docs)]
     pub conf: Rc<ResConfig>,
     #[allow(missing_docs)]
@@ -381,7 +363,7 @@ pub struct ResLump<I, O> {
 
 impl<'msg, I, O> ResLump<I, O> {
     ///Use mod's apply() with bundled state and config.
-    pub fn apply(&self, input: &I) -> Result<(O, Box<ResState>), Cow<'msg, str>> {
+    pub fn apply(&self, input: &I) -> Result<(O, Box<ResState>), StringError> {
         self.module.apply(input, &self.conf, &self.state)
     }
 }

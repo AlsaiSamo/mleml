@@ -7,7 +7,7 @@
 use std::borrow::Cow;
 
 use crate::{
-    resource::{InstrumentLump, NoteModLump, PlatformValues, SoundModLump},
+    resource::{InstrumentLump, NoteModLump, PlatformValues, SoundModLump, ResConfig, ResState, Mod, StringError},
     types::{Note, ReadyNote, Sound},
 };
 
@@ -81,7 +81,7 @@ impl ChannelState {
         note: Note,
         //Should I instead only pass in cccc?
         vals: &PlatformValues,
-    ) -> Result<(Sound, ChannelStateChanges), Cow<'_, str>> {
+    ) -> Result<(Sound, ChannelStateChanges), StringError> {
         let mut note = note;
         let mut note_states: Vec<Box<[u8]>> = Vec::new();
         for i in self.note_mods.iter() {

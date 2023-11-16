@@ -12,7 +12,7 @@ use mleml::{
         native::{SimpleMod, SimplePlatform},
         Platform, PlatformValues,
     },
-    resource::{JsonArray, Mod, ResState, ResConfig},
+    resource::{JsonArray, Mod, ResState, ResConfig, StringError},
     types::{ReadyNote, Sound},
 };
 use serde_json::json;
@@ -28,7 +28,7 @@ fn main() {
         "Square wave generator".to_owned(),
         //No config
         JsonArray::new(),
-        |input, _conf, _state| -> Result<(Sound, Box<[u8]>), Cow<'_, str>> {match input.pitch {
+        |input, _conf, _state| -> Result<(Sound, Box<[u8]>), StringError> {match input.pitch {
             Some(hz) => {
                 let signal = signal::rate(48000.0).const_hz(hz.into()).square();
                 let data = signal
@@ -48,7 +48,7 @@ fn main() {
         "Sine modulated with another sine".to_owned(),
         //Modulating sine's frequency
         JsonArray::from_vec(vec![json!(440)]).unwrap(),
-        |input, conf, _state| -> Result<(Sound, Box<[u8]>), std::borrow::Cow<'_, str>> {
+        |input, conf, _state| -> Result<(Sound, Box<[u8]>), StringError> {
             match input.pitch {
                 Some(hz) => {
                     //Modulating wave
@@ -92,9 +92,9 @@ fn main() {
                      _state: &'d ResState|
                      -> Result<
                 (Sound, Box<[u8]>, Box<[Option<&'a [Stereo<f32>]>]>),
-                Cow<'e, str>> {
+                StringError> {
                 if input.len() != 2 {
-                    Err(Cow::Borrowed("platform needs exactly two channels"))
+                    Err(StringError("platform needs exactly two channels".to_owned()))
                 } else {
                     let mut out = input[0].1.to_owned();
                     add_in_place(&mut out, input[1].1);

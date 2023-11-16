@@ -10,7 +10,7 @@ use std::{
     mem::discriminant,
 };
 
-use super::{JsonArray, Mod, Platform, PlatformValues, ResConfig, ResState, Resource};
+use super::{JsonArray, Mod, Platform, PlatformValues, ResConfig, ResState, Resource, StringError};
 use crate::types::Sound;
 
 fn json_array_find_deviation(reference: &JsonArray, given: &JsonArray) -> Option<usize> {
@@ -18,7 +18,7 @@ fn json_array_find_deviation(reference: &JsonArray, given: &JsonArray) -> Option
 }
 
 ///Simple implementation of a module that is easy to initialise and use.
-pub struct SimpleMod<'msg, I, O> {
+pub struct SimpleMod<I, O> {
     name: String,
     id: String,
     desc: String,
@@ -27,18 +27,18 @@ pub struct SimpleMod<'msg, I, O> {
         input: &I,
         conf: &ResConfig,
         state: &ResState,
-    ) -> Result<(O, Box<ResState>), Cow<'msg, str>>,
+    ) -> Result<(O, Box<ResState>), StringError>,
     check_state: fn(&ResState) -> bool,
 }
 
-impl<'msg, I, O> SimpleMod<'msg, I, O> {
+impl<'msg, I, O> SimpleMod<I, O> {
     ///Create new SimpleMod.
     pub fn new(
         name: String,
         id: String,
         desc: String,
         schema: ResConfig,
-        apply: fn(&I, &ResConfig, &ResState) -> Result<(O, Box<ResState>), Cow<'msg, str>>,
+        apply: fn(&I, &ResConfig, &ResState) -> Result<(O, Box<ResState>), StringError>,
         check_state: fn(&ResState) -> bool,
     ) -> Self {
         SimpleMod {
@@ -52,7 +52,7 @@ impl<'msg, I, O> SimpleMod<'msg, I, O> {
     }
 }
 
-impl<'msg, I, O> Resource for SimpleMod<'msg, I, O> {
+impl<'msg, I, O> Resource for SimpleMod<I, O> {
     fn orig_name(&self) -> Option<Cow<'_, str>> {
         Some(Cow::Borrowed(self.name.as_str()))
     }
@@ -61,9 +61,9 @@ impl<'msg, I, O> Resource for SimpleMod<'msg, I, O> {
         self.id.as_str()
     }
 
-    fn check_config(&self, conf: &ResConfig) -> Result<(), Cow<'_, str>> {
+    fn check_config(&self, conf: &ResConfig) -> Result<(), StringError> {
         match json_array_find_deviation(&self.schema, conf) {
-            Some(i) => Err(Cow::Owned(format!("type mismatch at index {}", i))),
+            Some(i) => Err(StringError(format!("type mismatch at index {}", i))),
             None => Ok(()),
         }
     }
@@ -77,13 +77,13 @@ impl<'msg, I, O> Resource for SimpleMod<'msg, I, O> {
     }
 }
 
-impl<'msg, I, O> Mod<'msg, I, O> for SimpleMod<'msg, I, O> {
+impl<I, O> Mod<I, O> for SimpleMod<I, O> {
     fn apply(
         &self,
         input: &I,
         conf: &ResConfig,
         state: &ResState,
-    ) -> Result<(O, Box<ResState>), Cow<'msg, str>> {
+    ) -> Result<(O, Box<ResState>), StringError> {
         (self.apply)(input, conf, state)
     }
 }
@@ -91,7 +91,7 @@ impl<'msg, I, O> Mod<'msg, I, O> for SimpleMod<'msg, I, O> {
 ///Simple implementation of a platform.
 ///
 ///It cannot change the provided values.
-pub struct SimplePlatform<'a, 'msg> {
+pub struct SimplePlatform<'a> {
     name: String,
     id: String,
     desc: String,
@@ -103,11 +103,11 @@ pub struct SimplePlatform<'a, 'msg> {
         &ResConfig,
         &ResState,
     )
-        -> Result<(Sound, Box<ResState>, Box<[Option<&'a [Stereo<f32>]>]>), Cow<'msg, str>>,
+        -> Result<(Sound, Box<ResState>, Box<[Option<&'a [Stereo<f32>]>]>), StringError>,
     check_state: fn(&ResState) -> bool,
 }
 
-impl<'a, 'msg> SimplePlatform<'a, 'msg> {
+impl<'a> SimplePlatform<'a> {
     ///Create new SimplePlatform.
     pub fn new(
         name: String,
@@ -121,7 +121,7 @@ impl<'a, 'msg> SimplePlatform<'a, 'msg> {
             &ResConfig,
             &ResState,
         )
-            -> Result<(Sound, Box<ResState>, Box<[Option<&'a [Stereo<f32>]>]>), Cow<'msg, str>>,
+            -> Result<(Sound, Box<ResState>, Box<[Option<&'a [Stereo<f32>]>]>), StringError>,
         check_state: fn(&ResState) -> bool,
     ) -> Self {
         SimplePlatform {
@@ -136,7 +136,7 @@ impl<'a, 'msg> SimplePlatform<'a, 'msg> {
     }
 }
 
-impl<'a, 'msg> Resource for SimplePlatform<'a, 'msg> {
+impl<'a> Resource for SimplePlatform<'a> {
     fn orig_name(&self) -> Option<Cow<'_, str>> {
         Some(Cow::Borrowed(self.name.as_str()))
     }
@@ -145,9 +145,9 @@ impl<'a, 'msg> Resource for SimplePlatform<'a, 'msg> {
         self.id.as_str()
     }
 
-    fn check_config(&self, conf: &ResConfig) -> Result<(), Cow<'_, str>> {
+    fn check_config(&self, conf: &ResConfig) -> Result<(), StringError> {
         match json_array_find_deviation(&self.schema, conf) {
-            Some(i) => Err(Cow::Owned(format!("type mismatch at index {}", i))),
+            Some(i) => Err(StringError(format!("type mismatch at index {}", i))),
             None => Ok(()),
         }
     }
@@ -161,7 +161,7 @@ impl<'a, 'msg> Resource for SimplePlatform<'a, 'msg> {
     }
 }
 
-impl<'a, 'msg> Platform<'a, 'msg> for SimplePlatform<'a, 'msg> {
+impl<'a> Platform<'a> for SimplePlatform<'a> {
     fn get_vals(&self) -> PlatformValues {
         self.values.clone()
     }
@@ -172,7 +172,7 @@ impl<'a, 'msg> Platform<'a, 'msg> for SimplePlatform<'a, 'msg> {
         play_time: u32,
         conf: &ResConfig,
         state: &ResState,
-    ) -> Result<(Sound, Box<ResState>, Box<[Option<&'a [Stereo<f32>]>]>), Cow<'msg, str>> {
+    ) -> Result<(Sound, Box<ResState>, Box<[Option<&'a [Stereo<f32>]>]>), StringError> {
         (self.mix)(channels, play_time, conf, state)
     }
 }
