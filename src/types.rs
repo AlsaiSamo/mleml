@@ -6,12 +6,12 @@
 
 use dasp::frame::Stereo;
 use slice_dst::SliceWithHeader;
-use std::num::{NonZeroU8, NonZeroI8};
+use std::num::{NonZeroI8, NonZeroU8};
 
 /// Note, defined in platform-friendly values.
 ///
 /// This is designed to be used with [`ChannelState`][crate::channel::ChannelState].
-#[derive(Clone)]
+#[derive(Clone, Default)]
 #[repr(C)]
 pub struct Note {
     /// Note's length in ticks. If None, then the length needs to be provided from
@@ -36,7 +36,7 @@ pub struct Note {
 }
 
 ///Note, defined in SI units.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct ReadyNote {
     ///Length of a note in seconds.
     pub len: f32,

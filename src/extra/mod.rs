@@ -2,5 +2,7 @@
 
 pub mod storage;
 
-#[cfg(feature = "builtin_res")]
-pub mod example_resources;
+#[cfg(feature = "builtin")]
+mod builtin;
+#[cfg(feature = "builtin")]
+pub use {};

@@ -1,10 +1,6 @@
 #![warn(missing_docs)]
 #![feature(ptr_from_ref)]
 #![cfg_attr(feature = "extra", feature(hash_set_entry))]
-
-//TODO: create example platform and mods, feature-gated, and preferably in
-//Rust and C.
-
 //TODO: I am using equal temperament here, so mention that
 //also that some parts stick to MIDI.
 
@@ -60,10 +56,9 @@
 // //!if we play a full note on channel 1 and a quarter note on channel 2,
 // //!mixing function will return three quarter notes worth of sound from channel 1 back.
 
-pub mod types;
-pub mod resource;
 pub mod channel;
+pub mod resource;
+pub mod types;
 
 #[cfg(feature = "extra")]
 pub mod extra;
-

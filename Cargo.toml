@@ -6,13 +6,13 @@ edition = "2021"
 [features]
 default = ["extra"]
 extra = []
-builtin_res = []
+builtin = []
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [[example]]
 name = "example_fm"
 path = "examples/example_fm.rs"
-required-features = ["builtin_res"]
+required-features = ["builtin"]
 
 [dependencies]
 #dlopen2 = "0.6"

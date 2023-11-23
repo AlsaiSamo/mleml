@@ -67,13 +67,13 @@ mod tests {
         let mut set: HashSet<Rc<str>> = HashSet::default();
         let r1 = set.wrap(b1);
         assert_eq!(set.len(), 1);
-//attempt to insert duplicate data
+        //attempt to insert duplicate data
         let r2 = set.wrap(b2);
-//Duplicate was not inserted
+        //Duplicate was not inserted
         assert_eq!(set.len(), 1);
-//The RC has to be the same one
+        //The RC has to be the same one
         assert!(ptr::eq(r1.as_ref(), r2.as_ref()));
-//The RC has to have 3 instances (r1, r2 and in the set)
+        //The RC has to have 3 instances (r1, r2 and in the set)
         assert_eq!(Rc::strong_count(&r2), 3);
     }
 }
