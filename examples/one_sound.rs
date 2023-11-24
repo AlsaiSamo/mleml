@@ -9,50 +9,59 @@ use dasp::{
 };
 use mleml::{
     resource::{
-        native::{SimpleMod, SimplePlatform},
         Platform, PlatformValues,
     },
-    resource::{JsonArray, Mod, ResState, ResConfig, StringError},
-    types::{ReadyNote, Sound},
+    resource::{JsonArray, Mod, ResConfig, ResState, StringError, ModData},
+    types::{ReadyNote, Sound}, extra::builtin::{SimplePlatform, SimpleMod},
 };
 use serde_json::json;
-use std::{borrow::Cow, fs::OpenOptions, io::Write, path::Path};
+use std::{borrow::Cow, fs::OpenOptions, io::Write, path::Path, mem::discriminant};
 
 //Writes a file with pcm_f32le format
 fn main() {
     //Simple square generator
-    let square: SimpleMod<ReadyNote, Sound> = SimpleMod::new(
+    let square: SimpleMod = SimpleMod::new(
         "Square wave generator".to_owned(),
         //This should be some random string but eh
         "SQUARE".to_owned(),
         "Square wave generator".to_owned(),
         //No config
         JsonArray::new(),
-        |input, _conf, _state| -> Result<(Sound, Box<[u8]>), StringError> {match input.pitch {
-            Some(hz) => {
-                let signal = signal::rate(48000.0).const_hz(hz.into()).square();
-                let data = signal
-                    .take((input.len * 48000.0).ceil() as usize)
-                    .map(|x: f64| [x as f32, x as f32])
-                    .collect();
-                Ok((Sound::new(data, 48000), Box::new([])))
+        |input, _conf, _state| -> Result<(ModData, Box<[u8]>), StringError> {
+            let input = input.as_ready_note().ok_or(StringError("input needs to be a ReadyNote".to_string()))?;
+            match input.pitch {
+                Some(hz) => {
+                    let signal = signal::rate(48000.0).const_hz(hz.into()).square();
+                    let data = signal
+                        .take((input.len * 48000.0).ceil() as usize)
+                        .map(|x: f64| [x as f32, x as f32])
+                        .collect();
+                    Ok((ModData::Sound(Sound::new(data, 48000)), Box::new([])))
+                }
+                None => todo!(),
             }
-            None => todo!(),
-        }},
+        },
         //No state -> all state is good
         |_| true,
+        discriminant(&mleml::resource::ModData::ReadyNote(ReadyNote::default())),
+        discriminant(&mleml::resource::ModData::Sound(Sound::new(Box::new([]), 0))),
     );
-    let two_sine: SimpleMod<ReadyNote, Sound> = SimpleMod::new(
+    let two_sine: SimpleMod = SimpleMod::new(
         "Sine modulated with sine".to_owned(),
         "TWO_SINES".to_owned(),
         "Sine modulated with another sine".to_owned(),
         //Modulating sine's frequency
         JsonArray::from_vec(vec![json!(440)]).unwrap(),
-        |input, conf, _state| -> Result<(Sound, Box<[u8]>), StringError> {
+        |input, conf, _state| -> Result<(ModData, Box<[u8]>), StringError> {
+            let input = input.as_ready_note().ok_or(StringError("input needs to be a ReadyNote".to_string()))?;
             match input.pitch {
                 Some(hz) => {
                     //Modulating wave
-                    let s1 = signal::rate(48000.0).const_hz(hz.into()).sine().scale_amp(0.5).offset_amp(1.0);
+                    let s1 = signal::rate(48000.0)
+                        .const_hz(hz.into())
+                        .sine()
+                        .scale_amp(0.5)
+                        .offset_amp(1.0);
                     //Carrier wave
                     let s2 = signal::rate(48000.0)
                         .const_hz(conf.as_slice()[0].as_f64().unwrap())
@@ -65,62 +74,73 @@ fn main() {
                         .take((input.len * 48000.0).ceil() as usize)
                         .map(|x| [x as f32, x as f32])
                         .collect();
-                    Ok((Sound::new(out, 48000), Box::new([])))
+                    Ok((ModData::Sound(Sound::new(out, 48000)), Box::new([])))
                 }
                 None => todo!(),
             }
         },
         |_| true,
+        discriminant(&mleml::resource::ModData::ReadyNote(ReadyNote::default())),
+        discriminant(&mleml::resource::ModData::Sound(Sound::new(Box::new([]), 0))),
     );
-    let mixer =
-        SimplePlatform::new(
-            "Two channel addition".to_owned(),
-            "MIXER".to_owned(),
-            "Adds two channels together crudely".to_owned(),
-            JsonArray::new(),
-            PlatformValues {
-                cccc: 8.0,
-                tick_len: 0.00028,
-                zenlen: 96,
-                tempo: 150.0,
-                max_volume: 255,
-                channels: 2,
-            },
-            for<'a, 'b, 'c, 'd, 'e> |input: &'b [(bool, &'a [Stereo<f32>])],
-                     _play: u32,
-                     _conf: &'c ResConfig,
-                     _state: &'d ResState|
-                     -> Result<
-                (Sound, Box<[u8]>, Box<[Option<&'a [Stereo<f32>]>]>),
-                StringError> {
-                if input.len() != 2 {
-                    Err(StringError("platform needs exactly two channels".to_owned()))
-                } else {
-                    let mut out = input[0].1.to_owned();
-                    add_in_place(&mut out, input[1].1);
-                    map_in_place(&mut out, |x| x.mul_amp([0.5, 0.5]));
-                    Ok((
-                        Sound::new(out.into(), 48000),
-                        Box::new([]),
-                        Box::new([None, None]),
-                    ))
-                }
-            },
-            |_| true,
-        );
-    let note = ReadyNote {
+    let mixer = SimplePlatform::new(
+        "Two channel addition".to_owned(),
+        "MIXER".to_owned(),
+        "Adds two channels together crudely".to_owned(),
+        JsonArray::new(),
+        PlatformValues {
+            cccc: 8.0,
+            tick_len: 0.00028,
+            zenlen: 96,
+            tempo: 150.0,
+            max_volume: 255,
+            channels: 2,
+        },
+        for<'a, 'b, 'c, 'd, 'e> |input: &'b [(bool, &'a [Stereo<f32>])],
+                                 _play: u32,
+                                 _conf: &'c ResConfig,
+                                 _state: &'d ResState|
+                                 -> Result<
+            (Sound, Box<[u8]>, Box<[Option<&'a [Stereo<f32>]>]>),
+            StringError,
+        > {
+            if input.len() != 2 {
+                Err(StringError(
+                    "platform needs exactly two channels".to_owned(),
+                ))
+            } else {
+                let mut out = input[0].1.to_owned();
+                add_in_place(&mut out, input[1].1);
+                map_in_place(&mut out, |x| x.mul_amp([0.5, 0.5]));
+                Ok((
+                    Sound::new(out.into(), 48000),
+                    Box::new([]),
+                    Box::new([None, None]),
+                ))
+            }
+        },
+        |_| true,
+    );
+    let note = ModData::ReadyNote(ReadyNote {
         len: 2.0,
         post_release: 0.0,
         pitch: Some(440.0),
         velocity: 128,
-    };
+    });
     let square_note = square.apply(&note, &JsonArray::new(), &[]).unwrap().0;
+    // let square_note: Sound = todo!();
     let sines_note = two_sine
         .apply(&note, &JsonArray::from_vec(vec![json!(256)]).unwrap(), &[])
         .unwrap()
         .0;
+    // let sines_note: Sound = todo!();
     let res = mixer
-        .mix(&[(true, &square_note.as_ref()), (true, &sines_note.as_ref())], 9999, &JsonArray::new(), &[])
+        .mix(
+            &[(true, &square_note.as_sound().unwrap().as_ref()), (true, &sines_note.as_sound().unwrap().as_ref())],
+            9999,
+            &JsonArray::new(),
+            &[],
+        )
         .unwrap();
     let synthesized: Vec<u8> = res
         .0
