@@ -3,7 +3,6 @@
 mod mod_template;
 mod platform_template;
 mod utility_mods;
-mod channel;
 
 //TODO: pub use stuff
 
@@ -11,4 +10,3 @@ mod channel;
 pub use mod_template::SimpleMod;
 pub use platform_template::SimplePlatform;
 pub use utility_mods::ConvertNote;
-pub use channel::SimpleChannel;

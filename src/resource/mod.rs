@@ -14,21 +14,21 @@
 //TODO: use rc_slice2 crate? It allows creating subslices which can also be Rc's,
 // which would probably simplify platform mixer.
 
-//mod ext;
-pub mod native;
-
 use crate::types::{Note, ReadyNote, Sound};
 use dasp::frame::Stereo;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, to_vec};
+use thiserror::Error;
 use std::{
     borrow::Cow,
     hash::{Hash, Hasher},
     mem::{discriminant, Discriminant},
+    rc::Rc,
 };
-use thiserror::Error;
+
 
 type JsonValue = serde_json::Value;
+
 
 ///Flat JSON array of arbitrary values.
 ///
@@ -53,7 +53,7 @@ impl JsonArray {
     pub fn from_vec(items: Vec<JsonValue>) -> Option<Self> {
         match items.iter().any(|x| !(x.is_array() | x.is_object())) {
             true => Some(Self(items.into())),
-            false => None,
+            false => None
         }
     }
 
@@ -147,11 +147,10 @@ impl<'a> ConfigBuilder<'a> {
     //returns error on attempt to append to a finished config.
     //SHould it return error on extra values always? Or should it return Ok(0)?
     pub fn inject<T>(&mut self, values: T) -> Result<usize, ConfigBuilderError>
-    where
-        T: AsRef<[JsonValue]>,
+        where T: AsRef<[JsonValue]>,
     {
         if let ConfigBuilder::Config(_) = self {
-            return Err(ConfigBuilderError::ValueOutsideSchema);
+            return Err(ConfigBuilderError::ValueOutsideSchema)
         }
         let mut values = values.as_ref().iter();
         let mut count = 0;
@@ -193,7 +192,8 @@ impl<'a> ConfigBuilder<'a> {
 impl<'a> ConfBuilding<'a> {
     ///Checks and appends one item to the unfinished configuration. Ok(true)
     ///signals that the config is full.
-    fn append(&mut self, value: &JsonValue) -> Result<bool, ConfigBuilderError> {
+    fn append(&mut self, value: &JsonValue) -> Result<bool, ConfigBuilderError>
+    {
         if self.schema.as_slice().len() == self.config.as_slice().len() {
             return Err(ConfigBuilderError::ValueOutsideSchema);
         }
@@ -327,7 +327,7 @@ pub trait Platform<'a>: Resource {
         play_time: u32,
         conf: &ResConfig,
         state: &ResState,
-    ) -> Result<(Sound, Box<ResState>, Box<[Option<&'a [Stereo<f32>]>]>), StringError>;
+    ) -> Result<(Sound, Box<ResState>, Box<[Option<&'a [Stereo<f32>]>]>),StringError>;
 }
 
 ///Types that the mods can process.
@@ -335,7 +335,7 @@ pub enum ModData {
     String(String),
     Note(Note),
     ReadyNote(ReadyNote),
-    Sound(Sound),
+    Sound(Sound)
 }
 
 impl ModData {
@@ -406,6 +406,7 @@ impl ModData {
 
 /// A resource that is used in data transformations.
 pub trait Mod: Resource {
+
     ///Pure transformation function.
     fn apply(
         &self,
@@ -480,9 +481,7 @@ mod tests {
         //Correct type is Number, and this is not the last element
         assert!(conf_building.append(&json!(30.3)).is_ok_and(|x| !x));
         //Correct type is String, and this is not the last element
-        assert!(conf_building
-            .append(&json!("Very silent"))
-            .is_ok_and(|x| !x));
+        assert!(conf_building.append(&json!("Very silent")).is_ok_and(|x| !x));
         //Correct type is Bool, and this is the last element of the config
         assert!(conf_building.append(&json!(false)).is_ok_and(|x| x));
     }
@@ -497,9 +496,7 @@ mod tests {
         //Correct type is Number, and this is not the last element
         assert!(conf_building.append(&json!(30.3)).is_ok_and(|x| !x));
         //Correct type is String, and this is not the last element
-        assert!(conf_building
-            .append(&json!("Very silent"))
-            .is_ok_and(|x| !x));
+        assert!(conf_building.append(&json!("Very silent")).is_ok_and(|x| !x));
         //Correct type is Bool, and this is the last element of the config
         assert!(conf_building.append(&json!(false)).is_ok_and(|x| x));
         assert!(conf_building
@@ -600,10 +597,7 @@ mod tests {
             //Other test proves that extra values will not be accepted,
             //eliminating ValueOutsideSchema possibility.
             Err(e) => {
-                assert_eq!(
-                    e,
-                    ConfigBuilderError::TypeMismatch(1, expected_disc, given_disc)
-                );
+                assert_eq!(e, ConfigBuilderError::TypeMismatch(1, expected_disc, given_disc));
             }
         }
     }
