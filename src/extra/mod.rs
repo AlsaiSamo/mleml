@@ -3,4 +3,4 @@
 pub mod storage;
 
 #[cfg(feature = "builtin")]
-mod builtin;
+pub mod builtin;

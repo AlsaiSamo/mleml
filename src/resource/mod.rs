@@ -57,6 +57,11 @@ impl JsonArray {
         }
     }
 
+    /// Provides a reference to the inner value.
+    pub fn get(&self) -> &JsonValue {
+        &self.0
+    }
+
     ///Get elements of the array as a slice.
     pub fn as_slice(&self) -> &[JsonValue] {
         self.0.as_array().unwrap().as_slice()
@@ -275,7 +280,7 @@ impl Hash for dyn Resource {
 ///frequency of C-1, acceptable volume range, and more.
 ///
 ///The platform may, for example, allow more channels, if configured to do so.
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 #[repr(C)]
 pub struct PlatformValues {
     ///Frequency of C-1. All other note frequencies are derived from it.

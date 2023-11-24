@@ -1,5 +1,5 @@
 use crate::{
-    resource::{Mod, ResConfig, ResState, Resource},
+    resource::{Mod, ResConfig, ResState, Resource, StringError, ModData},
     types::{ReadyNote, Sound},
 };
 use dasp::{
@@ -10,7 +10,7 @@ use dasp::{
 use serde_json::Value as JsonValue;
 use std::{
     borrow::{self, Cow},
-    iter::{self, Chain, FromFn},
+    iter::{self, Chain, FromFn}, mem::{discriminant, Discriminant},
 };
 
 //dasp allows generalising over impl Signal, but I couldn't use that, this
@@ -49,7 +49,7 @@ impl<S: Signal> Iterator for IterSignal<S> {
 }
 
 ///Example four-operator FM synthesizer.
-pub struct FourOpFm {}
+pub struct FourOpFm ();
 
 impl Resource for FourOpFm {
     fn orig_name(&self) -> Option<borrow::Cow<'_, str>> {
@@ -60,11 +60,11 @@ impl Resource for FourOpFm {
         "FOUR_OPERATOR_FM"
     }
 
-    fn check_config(&self, conf: &ResConfig) -> Result<(), borrow::Cow<'_, str>> {
+    fn check_config(&self, conf: &ResConfig) -> Result<(),StringError> {
         let conf = conf.as_slice();
         let len = conf.len();
         if len != 34 {
-            return Err(Cow::Owned(format!(
+            return Err(StringError(format!(
                 "wrong number of values: expected 34, got {len}"
             )));
         }
@@ -92,19 +92,20 @@ impl Resource for FourOpFm {
     }
 }
 
-//TODO: update
-impl<'msg> Mod<'msg, ReadyNote, Sound> for FourOpFm {
+impl Mod for FourOpFm {
     fn apply(
         &self,
-        input: &ReadyNote,
+        input: &ModData,
         conf: &ResConfig,
         _: &[u8],
-    ) -> Result<(Sound, Box<ResState>), Cow<'msg, str>> {
+    ) -> Result<(ModData, Box<ResState>), StringError> {
+        let input = input.as_ready_note().ok_or(StringError("input has to be a ReadyNote".to_string()))?;
         if input.pitch.is_none() {
             let len = ((input.len + input.post_release) * 48000.0) as usize;
             let data: Box<[[f32; 2]]> = vec![[0.0, 0.0]; len].into_boxed_slice();
-            return Ok((Sound::new(data, 48000), Box::new([])));
+            return Ok((ModData::Sound(Sound::new(data, 48000)), Box::new([])));
         }
+
         let conf = conf.as_slice();
         //Algorhitm to chain operators. Taken from YM2608 datasheet.
         let alg = get_int_value(&conf[0], 0, 7)? as i8;
@@ -135,7 +136,7 @@ impl<'msg> Mod<'msg, ReadyNote, Sound> for FourOpFm {
                 let out = op3.map(|x| [x as f32, x as f32]);
                 let time = ((input.len + input.post_release) * 48000.0) as usize;
                 Ok((
-                    Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000),
+                    ModData::Sound(Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000)),
                     Box::new([]),
                 ))
             }
@@ -147,7 +148,7 @@ impl<'msg> Mod<'msg, ReadyNote, Sound> for FourOpFm {
                 let out = op3.map(|x| [x as f32, x as f32]);
                 let time = ((input.len + input.post_release) * 48000.0) as usize;
                 Ok((
-                    Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000),
+                    ModData::Sound(Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000)),
                     Box::new([]),
                 ))
             }
@@ -159,7 +160,7 @@ impl<'msg> Mod<'msg, ReadyNote, Sound> for FourOpFm {
                 let out = op3.map(|x| [x as f32, x as f32]);
                 let time = ((input.len + input.post_release) * 48000.0) as usize;
                 Ok((
-                    Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000),
+                    ModData::Sound(Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000)),
                     Box::new([]),
                 ))
             }
@@ -171,7 +172,7 @@ impl<'msg> Mod<'msg, ReadyNote, Sound> for FourOpFm {
                 let out = op3.map(|x| [x as f32, x as f32]);
                 let time = ((input.len + input.post_release) * 48000.0) as usize;
                 Ok((
-                    Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000),
+                    ModData::Sound(Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000)),
                     Box::new([]),
                 ))
             }
@@ -183,7 +184,7 @@ impl<'msg> Mod<'msg, ReadyNote, Sound> for FourOpFm {
                 let out = out.map(|x| [x as f32, x as f32]);
                 let time = ((input.len + input.post_release) * 48000.0) as usize;
                 Ok((
-                    Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000),
+                    ModData::Sound(Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000)),
                     Box::new([]),
                 ))
             }
@@ -202,7 +203,7 @@ impl<'msg> Mod<'msg, ReadyNote, Sound> for FourOpFm {
                 let out = out.map(|x| [x as f32, x as f32]);
                 let time = ((input.len + input.post_release) * 48000.0) as usize;
                 Ok((
-                    Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000),
+                    ModData::Sound(Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000)),
                     Box::new([]),
                 ))
             }
@@ -213,7 +214,7 @@ impl<'msg> Mod<'msg, ReadyNote, Sound> for FourOpFm {
                 let out = out.map(|x| [x as f32, x as f32]);
                 let time = ((input.len + input.post_release) * 48000.0) as usize;
                 Ok((
-                    Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000),
+                    ModData::Sound(Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000)),
                     Box::new([]),
                 ))
             }
@@ -223,12 +224,20 @@ impl<'msg> Mod<'msg, ReadyNote, Sound> for FourOpFm {
                 let out = out.map(|x| [x as f32, x as f32]);
                 let time = ((input.len + input.post_release) * 48000.0) as usize;
                 Ok((
-                    Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000),
+                    ModData::Sound(Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000)),
                     Box::new([]),
                 ))
             }
             _ => unreachable!(),
         }
+    }
+
+    fn input_type(&self) -> Discriminant<ModData> {
+        discriminant(&ModData::ReadyNote(ReadyNote::default()))
+    }
+
+    fn output_type(&self) -> Discriminant<ModData> {
+        discriminant(&ModData::Sound(Sound::new(Box::new([]), 0)))
     }
 }
 
@@ -390,29 +399,28 @@ fn linear() -> Linear<f64> {
     Linear::new(0.0, 1.0)
 }
 
-fn get_int_value(val: &JsonValue, lower: i64, upper: i64) -> Result<i64, Cow<'static, str>> {
+fn get_int_value(val: &JsonValue, lower: i64, upper: i64) -> Result<i64, StringError> {
     match val.as_i64() {
         Some(x) => match x {
-            x if (x < lower) || (x > upper) => Err(Cow::Owned(format!(
+            x if (x < lower) || (x > upper) => Err(StringError(format!(
                 "value {} is outside of range {} - {}",
                 x, lower, upper
             ))),
             _ => Ok(x),
         },
-        None => Err(Cow::Owned("extracted value is not integer".to_string())),
+        None => Err(StringError("extracted value is not integer".to_string())),
     }
 }
 
-fn get_bool_value(val: &JsonValue) -> Result<bool, Cow<'static, str>> {
+fn get_bool_value(val: &JsonValue) -> Result<bool, StringError> {
     match val.as_bool() {
         Some(x) => Ok(x),
-        None => Err(Cow::Owned("extracted value is not bool".to_string())),
+        None => Err(StringError("extracted value is not bool".to_string())),
     }
 }
 
+//Could just divide, truncate, and multiply back
 fn clamp_f64_to_i8(f: f64) -> f64 {
-    //I11::new((f * 1024.0) as i16).unwrap().inner() as f64
-    //(((f * 32768.0) as i16 )) as f64 / 32768.0
     ((f * 512.0) as i8) as f64 / 512.0
 }
 

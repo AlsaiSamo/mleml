@@ -1,4 +1,7 @@
-//TODO: rewrite to use Channel trait
+use std::{rc::Rc, mem::{discriminant, Discriminant}, borrow::Cow};
+
+use crate::{resource::{ResState, Mod, ResConfig, PlatformValues, StringError, ModData, Resource}, types::{Note, Sound}, channel::{PipelineStateChanges, Channel}};
+
 pub struct SimpleChannel {
     ///Length of one tick in seconds
     pub tick_length: f32,
@@ -47,25 +50,56 @@ impl SimpleChannel {
             configs,
         }
     }
+}
 
-    pub fn play(
+impl Resource for SimpleChannel {
+    fn orig_name(&self) -> Option<Cow<'_, str>> {
+        Some(Cow::Borrowed("Simple channel"))
+    }
+
+    fn id(&self) -> &str {
+        "SIMPLE_CHANNEL"
+    }
+
+    fn check_config(&self, conf: &ResConfig) -> Result<(), StringError> {
+        match serde_json::from_value::<PlatformValues>(conf.get().clone()) {
+            Ok(_) => Ok(()),
+            Err(_) => Err(StringError("incorrect configuration".to_string())),
+        }
+    }
+
+    fn check_state(&self, _state: &ResState) -> Option<()> {
+        Some(())
+    }
+
+    fn description(&self) -> &str {
+        "A simple channel that auto-configures a builtin Note -> ResNote converter. Requires
+        configuration through serialized PlatformValues."
+    }
+}
+
+impl Channel for SimpleChannel {
+    fn play(
         &self,
-        note: Note,
-        //Should I instead only pass in cccc?
-        _vals: &PlatformValues,
-    ) -> Result<(Sound, PipelineStateChanges), StringError> {
+        item: ModData,
+        state: &ResState,
+        config: &ResConfig
+    ) -> Result<(ModData, PipelineStateChanges, Box<ResState>), StringError> {
         if (self.mods.len() != self.states.len()) || (self.mods.len() != self.states.len()) {
             return Err(StringError(
                 "number of mods, configs and states is not equal".to_owned(),
             ));
         }
 
-        let mut item = ModData::Note(note);
+        if !item.is_note() {
+            return Err(StringError("channel expects a Note".to_string()))
+        }
+
+        let mut item = item;
         let mut state_changes: Vec<Box<ResState>> = Vec::new();
 
         for i in 0..self.mods.len() {
             //TODO: check for ID of Note -> ResNote and process it differently
-            //TODO: also could differently process a "comment" mod
             if discriminant(&item) == self.mods[i].input_type() {
                 match self.mods[i].apply(&item, &self.configs[i], &self.states[i]) {
                     Ok((new, state)) => {
@@ -82,8 +116,16 @@ impl SimpleChannel {
         }
 
         match item {
-            ModData::Sound(out) => Ok((out, state_changes)),
+            ModData::Sound(out) => Ok((ModData::Sound(out), state_changes, Box::new([]))),
             _ => Err(StringError("pipeline produced incorrect type".to_string())),
         }
+    }
+
+    fn input_type(&self) -> Option<Discriminant<ModData>> {
+        Some(discriminant(&ModData::Note(Note::default())))
+    }
+
+    fn output_type(&self) -> Option<Discriminant<ModData>> {
+        Some(discriminant(&ModData::Sound(Sound::new(Box::new([]), 0))))
     }
 }
