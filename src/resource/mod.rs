@@ -57,6 +57,15 @@ impl JsonArray {
         }
     }
 
+    /// Wrap JSON value as JsonArray as long as it is an array with no nested arrays
+    /// or objects.
+    pub fn from_value(item: JsonValue) -> Option<Self> {
+        match item.as_array()?.iter().any(|x| !(x.is_array() | x.is_object())) {
+            true => Some(Self(item.into())),
+            false => None
+        }
+    }
+
     /// Provides a reference to the inner value.
     pub fn get(&self) -> &JsonValue {
         &self.0
