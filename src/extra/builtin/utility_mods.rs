@@ -29,7 +29,7 @@ impl Resource for ConvertNote {
         to_result(conf.len() == 5, "incorrect config length".to_string())?;
         to_result(
             conf[0].is_f64(),
-            "argument 1 (frequency of note 0) is not float".to_string(),
+            "argument 1 (frequency of C-1) is not float".to_string(),
         )?;
         to_result(
             conf[1].is_f64(),

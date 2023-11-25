@@ -63,6 +63,7 @@ impl Resource for SimpleChannel {
         "SIMPLE_CHANNEL"
     }
 
+    //[cccc, tick_len, zenlen, tempo, max_volume]
     fn check_config(&self, conf: &ResConfig) -> Result<(), StringError> {
         fn to_result(input: bool, msg: String) -> Result<(), StringError> {
             match input {
@@ -70,6 +71,37 @@ impl Resource for SimpleChannel {
                 false => Err(StringError(msg)),
             }
         }
+
+        let conf = conf.as_slice();
+
+        to_result(conf.len() == 5, "incorrect config length".to_string())?;
+
+        to_result(
+            conf[0].is_f64(),
+            "argument 1 (frequency of C-1) is not float".to_string(),
+        )?;
+
+        to_result(
+            conf[1].is_f64(),
+            "argument 2 (Length of one tick) is not float".to_string(),
+        )?;
+
+        to_result(
+            conf[2].is_i64(),
+            "argument 3 (number of ticks in one whole note) is not integer".to_string(),
+        )?;
+
+        to_result(
+            conf[3].is_f64(),
+            "argument 4 (ticks per beat) is not float".to_string(),
+        )?;
+
+        to_result(
+            conf[4].is_i64(),
+            "argument 5 (maximum volume setting) is not integer".to_string(),
+        )?;
+
+        Ok(())
     }
 
     fn check_state(&self, _state: &ResState) -> Option<()> {
@@ -103,7 +135,19 @@ impl Channel for SimpleChannel {
         let mut state_changes: Vec<Box<ResState>> = Vec::new();
 
         for i in 0..self.mods.len() {
-            //TODO: check for ID of Note -> ResNote and process it differently
+            if self.mods[i].id() == "BUILTIN_CONVERT_NOTE" {
+                let cccc = config.get().get(0).unwrap().as_f64().unwrap();
+                let tick_len = config.get().get(1).unwrap().as_f64().unwrap();
+                let conf = JsonArray::from_value(json!([cccc, tick_len, self.octave, self.post_release, 0])).unwrap();
+                match self.mods[i].apply(&item, &conf, &self.states[i]) {
+                    Ok((new, state)) => {
+                        item = new;
+                        state_changes.push(state);
+                    }
+                    Err(what) => return Err(StringError(format!("mod error at {i}: {}", what))),
+                }
+                continue
+            };
             if discriminant(&item) == self.mods[i].input_type() {
                 match self.mods[i].apply(&item, &self.configs[i], &self.states[i]) {
                     Ok((new, state)) => {
