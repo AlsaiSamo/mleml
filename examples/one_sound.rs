@@ -9,7 +9,7 @@ use dasp::{
 };
 use mleml::{
     resource::{
-        Platform, PlatformValues,
+        Platform,
     },
     resource::{JsonArray, Mod, ResConfig, ResState, StringError, ModData},
     types::{ReadyNote, Sound}, extra::builtin::{SimplePlatform, SimpleMod},
@@ -88,14 +88,7 @@ fn main() {
         "MIXER".to_owned(),
         "Adds two channels together crudely".to_owned(),
         JsonArray::new(),
-        PlatformValues {
-            cccc: 8.0,
-            tick_len: 0.00028,
-            zenlen: 96,
-            tempo: 150.0,
-            max_volume: 255,
-            channels: 2,
-        },
+        JsonArray::from_vec(json!([8.0, 0.00028, 96, 150.0, 255]).as_array().unwrap().to_owned()).unwrap(),
         for<'a, 'b, 'c, 'd, 'e> |input: &'b [(bool, &'a [Stereo<f32>])],
                                  _play: u32,
                                  _conf: &'c ResConfig,

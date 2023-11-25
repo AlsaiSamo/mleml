@@ -13,7 +13,7 @@ use std::{
 use thiserror::Error;
 
 use crate::{
-    resource::{Mod, ModData, PlatformValues, ResConfig, ResState, StringError, Resource},
+    resource::{Mod, ModData, ResConfig, ResState, StringError, Resource},
     types::{Note, Sound},
 };
 

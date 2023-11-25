@@ -276,34 +276,6 @@ impl Hash for dyn Resource {
     }
 }
 
-///Values provided by the platform, such as maixmum channel count,
-///frequency of C-1, acceptable volume range, and more.
-///
-///The platform may, for example, allow more channels, if configured to do so.
-#[derive(Clone, Serialize, Deserialize)]
-#[repr(C)]
-pub struct PlatformValues {
-    ///Frequency of C-1. All other note frequencies are derived from it.
-    ///
-    ///For reference, A440 standard makes C-1 equal to 8.175799.
-    pub cccc: f32,
-
-    ///Length of one tick in seconds.
-    pub tick_len: f32,
-
-    ///Length of a whole note in ticks.
-    pub zenlen: u32,
-
-    ///Number of ticks per beat.
-    pub tempo: f32,
-
-    ///What number denotes maximum volume setting.
-    pub max_volume: u32,
-
-    ///Maximum number of sound-producing channels.
-    pub channels: u32,
-}
-
 ///Resource that defines the quirks and limitations of a given platform
 ///(usually a sound chip).
 ///
@@ -315,7 +287,7 @@ pub struct PlatformValues {
 ///mimicking output of a sound chip.
 pub trait Platform<'a>: Resource {
     ///Get platform values.
-    fn get_vals(&self) -> PlatformValues;
+    fn get_config(&self) -> ResConfig;
 
     ///Mix provided sound samples.
     ///
@@ -325,10 +297,6 @@ pub trait Platform<'a>: Resource {
     fn mix(
         &self,
         channels: &[(bool, &'a [Stereo<f32>])],
-        //TODO: do I need this? We can instead see if we have hit None on any of the
-        //channels, which would indicate that the sound there had ended and a new one
-        //is going to be played immediately after.
-        //Or will it cause issues if, for example, we intentionally clip one of the sounds?
         play_time: u32,
         conf: &ResConfig,
         state: &ResState,

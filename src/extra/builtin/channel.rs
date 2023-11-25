@@ -1,6 +1,8 @@
 use std::{rc::Rc, mem::{discriminant, Discriminant}, borrow::Cow};
 
-use crate::{resource::{ResState, Mod, ResConfig, PlatformValues, StringError, ModData, Resource}, types::{Note, Sound}, channel::{PipelineStateChanges, Channel}};
+use serde_json::json;
+
+use crate::{resource::{ResState, Mod, ResConfig, StringError, ModData, Resource, JsonArray}, types::{Note, Sound}, channel::{PipelineStateChanges, Channel}};
 
 pub struct SimpleChannel {
     ///Length of one tick in seconds
@@ -62,9 +64,11 @@ impl Resource for SimpleChannel {
     }
 
     fn check_config(&self, conf: &ResConfig) -> Result<(), StringError> {
-        match serde_json::from_value::<PlatformValues>(conf.get().clone()) {
-            Ok(_) => Ok(()),
-            Err(_) => Err(StringError("incorrect configuration".to_string())),
+        fn to_result(input: bool, msg: String) -> Result<(), StringError> {
+            match input {
+                true => Ok(()),
+                false => Err(StringError(msg)),
+            }
         }
     }
 

@@ -2,14 +2,14 @@ use std::{borrow::Cow, mem::discriminant};
 
 use dasp::frame::Stereo;
 
-use crate::{resource::{ResConfig, ResState, PlatformValues, StringError, Resource, Platform, JsonArray}, types::Sound};
+use crate::{resource::{ResConfig, ResState, StringError, Resource, Platform, JsonArray}, types::Sound};
 
 pub struct SimplePlatform<'a> {
     name: String,
     id: String,
     desc: String,
     schema: ResConfig,
-    values: PlatformValues,
+    values: ResConfig,
     mix: fn(
         &[(bool, &'a [Stereo<f32>])],
         u32,
@@ -26,7 +26,7 @@ impl<'a> SimplePlatform<'a> {
         id: String,
         desc: String,
         schema: ResConfig,
-        values: PlatformValues,
+        values: ResConfig,
         mix: fn(
             &[(bool, &'a [Stereo<f32>])],
             u32,
@@ -74,7 +74,7 @@ impl<'a> Resource for SimplePlatform<'a> {
 }
 
 impl<'a> Platform<'a> for SimplePlatform<'a> {
-    fn get_vals(&self) -> PlatformValues {
+    fn get_config(&self) -> ResConfig {
         self.values.clone()
     }
 
