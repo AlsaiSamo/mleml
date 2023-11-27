@@ -1,38 +1,21 @@
 #![warn(missing_docs)]
-//!Resources provide stateless functions that can be configured.
-//!
-//!Configuration is done via flat JSON array. Function's state between calls
-//! is given, received and stored by the program, so that the function can be pure.
-//!
-//!Two types of resources are currently provided: `Mod<'msg, I, O>` transforms
-//!`I` into `O` (used to create note -> sound pipeline), while `Platform` provides
-//!constraints and sound mixing.
-//!
-//TODO: explain what modifiers can be used for what (transposing and key signature in
-// note mods, panning, LFO and other things in sound mods)
-
-//TODO: use rc_slice2 crate? It allows creating subslices which can also be Rc's,
-// which would probably simplify platform mixer.
+//! This module provides Mod and Mixer traits.
+//TODO: check notes.org
 
 use crate::types::{Note, ReadyNote, Sound};
 use dasp::frame::Stereo;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, to_vec};
-use thiserror::Error;
 use std::{
     borrow::Cow,
     hash::{Hash, Hasher},
     mem::{discriminant, Discriminant},
-    rc::Rc,
 };
-
+use thiserror::Error;
 
 type JsonValue = serde_json::Value;
 
-
 ///Flat JSON array of arbitrary values.
-///
-///Array's flatness makes it much easier to parse.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct JsonArray(JsonValue);
 
@@ -43,50 +26,61 @@ impl Default for JsonArray {
 }
 
 impl JsonArray {
-    ///Create new, empty JSON array.
+    //TODO: as_mut_slice?
+
+    /// Create new JSON array.
     pub fn new() -> Self {
         Self { 0: json!([]) }
     }
 
-    ///Convert vector of JSON values into JSON array, as long as no value is an array
+    /// Convert vector of JSON values into JSON array, as long as no value is an array
     /// or an object.
     pub fn from_vec(items: Vec<JsonValue>) -> Option<Self> {
         match items.iter().any(|x| !(x.is_array() | x.is_object())) {
             true => Some(Self(items.into())),
-            false => None
+            false => None,
         }
     }
 
     /// Wrap JSON value as JsonArray as long as it is an array with no nested arrays
     /// or objects.
     pub fn from_value(item: JsonValue) -> Option<Self> {
-        match item.as_array()?.iter().any(|x| !(x.is_array() | x.is_object())) {
+        match item
+            .as_array()?
+            .iter()
+            .any(|x| !(x.is_array() | x.is_object()))
+        {
             true => Some(Self(item.into())),
-            false => None
+            false => None,
         }
     }
 
-    /// Provides a reference to the inner value.
+    /// Returns a reference to the inner JSON value.
     pub fn get(&self) -> &JsonValue {
         &self.0
     }
 
-    ///Get elements of the array as a slice.
+    /// Returns a mutable reference to the inner JSON value.
+    pub fn get_mut(&mut self) -> &mut JsonValue {
+        &mut self.0
+    }
+
+    /// Returns a slice of contained JSON values.
     pub fn as_slice(&self) -> &[JsonValue] {
         self.0.as_array().unwrap().as_slice()
     }
 
-    ///Get array's length.
+    /// Get array's length.
     pub fn len(&self) -> usize {
         self.0.as_array().unwrap().len()
     }
 
-    ///Serialize into byte vector.
+    /// Serialize into byte vector.
     fn as_byte_vec(&self) -> Vec<u8> {
         to_vec(&self.0).unwrap()
     }
 
-    ///Push item into the array as long as the item is not an array or an object.
+    /// Push item into the array as long as the item is not an array or an object.
     fn push(&mut self, item: JsonValue) -> Option<()> {
         match item.is_array() | item.is_object() {
             true => None,
@@ -104,22 +98,22 @@ impl Hash for JsonArray {
     }
 }
 
-///Resource's configuration.
+/// Configuration of a resource
 pub type ResConfig = JsonArray;
 
-///Error encountered while building configuration.
+/// Errors that can be encountered while building configuration.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum ConfigBuilderError {
-    ///Provided type does not match the type defined in the schema.
+    /// Provided type does not match the type defined in the schema.
     #[error("type mismatch at {0}: expected {1:?}, got {2:?}")]
     TypeMismatch(usize, Discriminant<JsonValue>, Discriminant<JsonValue>),
 
-    ///Extra value is supplied to configuration that is already fully built.
+    /// Extra value is supplied to a configuration that is already fully built.
     #[error("value outside schema")]
     ValueOutsideSchema,
 }
 
-///Unfinished configuration builder (not all values were provided).
+/// State of configuration builder in which the config is not fully built yet.
 pub struct ConfBuilding<'a> {
     ///Schema of the module.
     schema: &'a ResConfig,
@@ -128,19 +122,20 @@ pub struct ConfBuilding<'a> {
     config: ResConfig,
 }
 
-///Configuration builder.
+/// Configuration builder.
 ///
-///Validates all provided values and their count against the schema.
+/// Validates all provided values and their count against the schema, comparing
+/// the types.
 pub enum ConfigBuilder<'a> {
-    ///Config is unfinished.
+    /// Configuration is still building.
     Builder(ConfBuilding<'a>),
 
-    ///Config is finished and can be used.
+    /// Configuration is fully built and can be used.
     Config(ResConfig),
 }
 
 impl<'a> ConfigBuilder<'a> {
-    ///Create new config builder from given schema.
+    /// Create new config builder from given schema.
     pub fn new(schema: &'a ResConfig) -> ConfigBuilder {
         if schema.as_slice().is_empty() {
             return ConfigBuilder::Config(ResConfig::new());
@@ -152,19 +147,19 @@ impl<'a> ConfigBuilder<'a> {
         }
     }
 
-    ///Append items from given iterable until configuration is built,
-    ///all items were appended, or an error occurs.
+    /// Append items from a given source to the configuration that is being built.
     ///
-    ///If iterable is longer than what is needed, extra values will be unused.
-    ///If it is shorter instead, the builder will continue to be a builder.
+    /// The function finishes when the configuration is finished building, all items
+    /// were used, or an error occurs.
     //TODO: current approach silently discards values that did not fit but
     //returns error on attempt to append to a finished config.
-    //SHould it return error on extra values always? Or should it return Ok(0)?
+    //Should it return error on extra values always? Or should it return Ok(0)?
     pub fn inject<T>(&mut self, values: T) -> Result<usize, ConfigBuilderError>
-        where T: AsRef<[JsonValue]>,
+    where
+        T: AsRef<[JsonValue]>,
     {
         if let ConfigBuilder::Config(_) = self {
-            return Err(ConfigBuilderError::ValueOutsideSchema)
+            return Err(ConfigBuilderError::ValueOutsideSchema);
         }
         let mut values = values.as_ref().iter();
         let mut count = 0;
@@ -204,10 +199,9 @@ impl<'a> ConfigBuilder<'a> {
 }
 
 impl<'a> ConfBuilding<'a> {
-    ///Checks and appends one item to the unfinished configuration. Ok(true)
-    ///signals that the config is full.
-    fn append(&mut self, value: &JsonValue) -> Result<bool, ConfigBuilderError>
-    {
+    /// Checks and appends one item to the unfinished configuration. Ok(true)
+    /// signals that the config is full.
+    fn append(&mut self, value: &JsonValue) -> Result<bool, ConfigBuilderError> {
         if self.schema.as_slice().len() == self.config.as_slice().len() {
             return Err(ConfigBuilderError::ValueOutsideSchema);
         }
@@ -230,38 +224,32 @@ impl<'a> ConfBuilding<'a> {
     }
 }
 
-///Resource's state.
+/// Resource's state.
 ///
-///Data inside of the state is opaque to everyone except its user.
+/// Data inside of the state is opaque.
 pub type ResState = [u8];
 
-///Configuration error.
+/// Configuration error.
 #[derive(Error, Debug, Eq, PartialEq)]
 pub enum ConfigError {
-    ///Unexpected type of value.
+    /// A value has an unexpected type.
     //TODO: discriminant's debug output is Discriminant(int). Replace with something else.
     #[error("type mismatch at {0}: expected {1:?}, got {2:?}")]
     BadValue(u32, Discriminant<JsonValue>, Discriminant<JsonValue>),
 
-    ///Incorrect length.
+    /// Configuration has incorrect length.
     #[error("length mismatch: expected {0}, got {1}")]
     BadLength(u32, u32),
 }
 
-//TODO: use Cow?
+//TODO: use Cow? Would this be significant?
 /// Arbitrary error message for resources.
 #[derive(Error, Debug)]
 #[error("resource error: {0}")]
 pub struct StringError(pub String);
 
-///Base trait for any resource.
-///
-///Resources of any type need to conform to these constraints:
-/// 1. Provide unique ID
-/// 2. Only provide pure functions (state is given and returned when needed)
-///
-///Resources are also named, but association of names to IDs needs to be done
-///externally.
+/// Base trait for any resource.
+//TODO: change description to be like the name?
 pub trait Resource {
     ///Resource's original name.
     fn orig_name(&self) -> Option<Cow<'_, str>>;
@@ -285,39 +273,38 @@ impl Hash for dyn Resource {
     }
 }
 
-///Resource that defines the quirks and limitations of a given platform
-///(usually a sound chip).
-///
-///As an example of a platform quirk, PMDMML plays SSG drums, defined in K channel,
-/// on I channel, which means that it is not possible to just mix sound.
-///
-///It should be noted that platform cannot influence what selection of modules
-///is used for any of the channels, or their order. Please be careful when
-///mimicking output of a sound chip.
-pub trait Platform<'a>: Resource {
-    ///Get platform values.
+/// Mixer combines multiple sounds into one, returning it together with unused sound pieces.
+pub trait Mixer<'a>: Resource {
+    /// Get mixer values.
     fn get_config(&self) -> ResConfig;
 
-    ///Mix provided sound samples.
+    /// Mix provided sound samples.
     ///
-    ///Sound samples are expected to come in the same order the channels that
-    ///have produced them do, and their number must match the number of channels
-    ///expected by the platform.
+    /// It is expected that the leftover sound bits from before are not shuffled around,
+    /// as the mixer may depend on their position.
     fn mix(
         &self,
         channels: &[(bool, &'a [Stereo<f32>])],
         play_time: u32,
         conf: &ResConfig,
         state: &ResState,
-    ) -> Result<(Sound, Box<ResState>, Box<[Option<&'a [Stereo<f32>]>]>),StringError>;
+        //TODO: type alias
+    ) -> Result<(Sound, Box<ResState>, Box<[Option<&'a [Stereo<f32>]>]>), StringError>;
 }
 
-///Types that the mods can process.
+/// Types that the mods can process.
 pub enum ModData {
+    /// String
     String(String),
+
+    /// Note
     Note(Note),
+
+    /// ReadyNote
     ReadyNote(ReadyNote),
-    Sound(Sound)
+
+    /// Sound
+    Sound(Sound),
 }
 
 impl ModData {
@@ -353,6 +340,8 @@ impl ModData {
         matches!(self, Self::Sound(..))
     }
 
+    //TODO: write docstrings (not a priority)
+    #[allow(missing_docs)]
     pub fn as_string(&self) -> Option<&String> {
         if let Self::String(v) = self {
             Some(v)
@@ -361,6 +350,7 @@ impl ModData {
         }
     }
 
+    #[allow(missing_docs)]
     pub fn as_note(&self) -> Option<&Note> {
         if let Self::Note(v) = self {
             Some(v)
@@ -369,6 +359,7 @@ impl ModData {
         }
     }
 
+    #[allow(missing_docs)]
     pub fn as_ready_note(&self) -> Option<&ReadyNote> {
         if let Self::ReadyNote(v) = self {
             Some(v)
@@ -377,6 +368,7 @@ impl ModData {
         }
     }
 
+    #[allow(missing_docs)]
     pub fn as_sound(&self) -> Option<&Sound> {
         if let Self::Sound(v) = self {
             Some(v)
@@ -386,10 +378,9 @@ impl ModData {
     }
 }
 
-/// A resource that is used in data transformations.
+/// Mods are used to produce new data from given data.
 pub trait Mod: Resource {
-
-    ///Pure transformation function.
+    /// Apply mod to data.
     fn apply(
         &self,
         input: &ModData,
@@ -397,10 +388,10 @@ pub trait Mod: Resource {
         state: &ResState,
     ) -> Result<(ModData, Box<ResState>), StringError>;
 
-    ///Discriminant of type that this mod expects to receive.
+    /// Discriminant of type that this mod expects to receive.
     fn input_type(&self) -> Discriminant<ModData>;
 
-    ///Discriminant of type that this mod will produce.
+    /// Discriminant of type that this mod will produce.
     fn output_type(&self) -> Discriminant<ModData>;
 }
 
@@ -463,7 +454,9 @@ mod tests {
         //Correct type is Number, and this is not the last element
         assert!(conf_building.append(&json!(30.3)).is_ok_and(|x| !x));
         //Correct type is String, and this is not the last element
-        assert!(conf_building.append(&json!("Very silent")).is_ok_and(|x| !x));
+        assert!(conf_building
+            .append(&json!("Very silent"))
+            .is_ok_and(|x| !x));
         //Correct type is Bool, and this is the last element of the config
         assert!(conf_building.append(&json!(false)).is_ok_and(|x| x));
     }
@@ -478,7 +471,9 @@ mod tests {
         //Correct type is Number, and this is not the last element
         assert!(conf_building.append(&json!(30.3)).is_ok_and(|x| !x));
         //Correct type is String, and this is not the last element
-        assert!(conf_building.append(&json!("Very silent")).is_ok_and(|x| !x));
+        assert!(conf_building
+            .append(&json!("Very silent"))
+            .is_ok_and(|x| !x));
         //Correct type is Bool, and this is the last element of the config
         assert!(conf_building.append(&json!(false)).is_ok_and(|x| x));
         assert!(conf_building
@@ -579,7 +574,10 @@ mod tests {
             //Other test proves that extra values will not be accepted,
             //eliminating ValueOutsideSchema possibility.
             Err(e) => {
-                assert_eq!(e, ConfigBuilderError::TypeMismatch(1, expected_disc, given_disc));
+                assert_eq!(
+                    e,
+                    ConfigBuilderError::TypeMismatch(1, expected_disc, given_disc)
+                );
             }
         }
     }

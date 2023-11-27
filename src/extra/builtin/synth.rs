@@ -1,5 +1,5 @@
 use crate::{
-    resource::{Mod, ResConfig, ResState, Resource, StringError, ModData},
+    resource::{Mod, ModData, ResConfig, ResState, Resource, StringError},
     types::{ReadyNote, Sound},
 };
 use dasp::{
@@ -9,9 +9,11 @@ use dasp::{
 };
 use serde_json::Value as JsonValue;
 use std::{
-    borrow::{self, Cow},
-    iter::{self, Chain, FromFn}, mem::{discriminant, Discriminant},
+    borrow::{self},
+    iter::{self, Chain, FromFn},
+    mem::{discriminant, Discriminant},
 };
+
 
 //dasp allows generalising over impl Signal, but I couldn't use that, this
 //enum is used instead.
@@ -48,8 +50,8 @@ impl<S: Signal> Iterator for IterSignal<S> {
     }
 }
 
-///Example four-operator FM synthesizer.
-pub struct FourOpFm ();
+/// Example four-operator FM synthesizer.
+pub struct FourOpFm();
 
 impl Resource for FourOpFm {
     fn orig_name(&self) -> Option<borrow::Cow<'_, str>> {
@@ -60,7 +62,7 @@ impl Resource for FourOpFm {
         "FOUR_OPERATOR_FM"
     }
 
-    fn check_config(&self, conf: &ResConfig) -> Result<(),StringError> {
+    fn check_config(&self, conf: &ResConfig) -> Result<(), StringError> {
         let conf = conf.as_slice();
         let len = conf.len();
         if len != 34 {
@@ -99,9 +101,11 @@ impl Mod for FourOpFm {
         conf: &ResConfig,
         _: &[u8],
     ) -> Result<(ModData, Box<ResState>), StringError> {
-        let input = input.as_ready_note().ok_or(StringError("input has to be a ReadyNote".to_string()))?;
+        let input = input
+            .as_ready_note()
+            .ok_or(StringError("input has to be a ReadyNote".to_string()))?;
         if input.pitch.is_none() {
-            let len = ((input.len + input.post_release) * 48000.0) as usize;
+            let len = ((input.len + input.decay_time) * 48000.0) as usize;
             let data: Box<[[f32; 2]]> = vec![[0.0, 0.0]; len].into_boxed_slice();
             return Ok((ModData::Sound(Sound::new(data, 48000)), Box::new([])));
         }
@@ -134,9 +138,12 @@ impl Mod for FourOpFm {
                 let op2 = op2.mul_hz(linear(), op1.offset_amp(1.0));
                 let op3 = op3.mul_hz(linear(), op2.offset_amp(1.0));
                 let out = op3.map(|x| [x as f32, x as f32]);
-                let time = ((input.len + input.post_release) * 48000.0) as usize;
+                let time = ((input.len + input.decay_time) * 48000.0) as usize;
                 Ok((
-                    ModData::Sound(Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000)),
+                    ModData::Sound(Sound::new(
+                        out.take(time).map(clamp_frame_to_i8).collect(),
+                        48000,
+                    )),
                     Box::new([]),
                 ))
             }
@@ -146,9 +153,12 @@ impl Mod for FourOpFm {
                 let op2 = op2.mul_hz(linear(), op1.offset_amp(1.0));
                 let op3 = op3.mul_hz(linear(), op2.offset_amp(1.0));
                 let out = op3.map(|x| [x as f32, x as f32]);
-                let time = ((input.len + input.post_release) * 48000.0) as usize;
+                let time = ((input.len + input.decay_time) * 48000.0) as usize;
                 Ok((
-                    ModData::Sound(Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000)),
+                    ModData::Sound(Sound::new(
+                        out.take(time).map(clamp_frame_to_i8).collect(),
+                        48000,
+                    )),
                     Box::new([]),
                 ))
             }
@@ -158,9 +168,12 @@ impl Mod for FourOpFm {
                 let op3 = op3.mul_hz(linear(), op0.offset_amp(1.0));
                 let op3 = op3.mul_hz(linear(), op2.offset_amp(1.0));
                 let out = op3.map(|x| [x as f32, x as f32]);
-                let time = ((input.len + input.post_release) * 48000.0) as usize;
+                let time = ((input.len + input.decay_time) * 48000.0) as usize;
                 Ok((
-                    ModData::Sound(Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000)),
+                    ModData::Sound(Sound::new(
+                        out.take(time).map(clamp_frame_to_i8).collect(),
+                        48000,
+                    )),
                     Box::new([]),
                 ))
             }
@@ -170,9 +183,12 @@ impl Mod for FourOpFm {
                 let op3 = op3.mul_hz(linear(), op1.offset_amp(1.0));
                 let op3 = op3.mul_hz(linear(), op2.offset_amp(1.0));
                 let out = op3.map(|x| [x as f32, x as f32]);
-                let time = ((input.len + input.post_release) * 48000.0) as usize;
+                let time = ((input.len + input.decay_time) * 48000.0) as usize;
                 Ok((
-                    ModData::Sound(Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000)),
+                    ModData::Sound(Sound::new(
+                        out.take(time).map(clamp_frame_to_i8).collect(),
+                        48000,
+                    )),
                     Box::new([]),
                 ))
             }
@@ -182,9 +198,12 @@ impl Mod for FourOpFm {
                 let op3 = op3.mul_hz(linear(), op2.offset_amp(1.0));
                 let out = op3.add_amp(op1);
                 let out = out.map(|x| [x as f32, x as f32]);
-                let time = ((input.len + input.post_release) * 48000.0) as usize;
+                let time = ((input.len + input.decay_time) * 48000.0) as usize;
                 Ok((
-                    ModData::Sound(Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000)),
+                    ModData::Sound(Sound::new(
+                        out.take(time).map(clamp_frame_to_i8).collect(),
+                        48000,
+                    )),
                     Box::new([]),
                 ))
             }
@@ -201,9 +220,12 @@ impl Mod for FourOpFm {
                 let op3 = op3.mul_hz(linear(), op0_2.scale_amp(0.5).offset_amp(0.5));
                 let out = op3.add_amp(op1).add_amp(op2).scale_amp(0.333);
                 let out = out.map(|x| [x as f32, x as f32]);
-                let time = ((input.len + input.post_release) * 48000.0) as usize;
+                let time = ((input.len + input.decay_time) * 48000.0) as usize;
                 Ok((
-                    ModData::Sound(Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000)),
+                    ModData::Sound(Sound::new(
+                        out.take(time).map(clamp_frame_to_i8).collect(),
+                        48000,
+                    )),
                     Box::new([]),
                 ))
             }
@@ -212,9 +234,12 @@ impl Mod for FourOpFm {
                 let op1 = op1.mul_hz(linear(), op0.scale_amp(0.5).offset_amp(0.5));
                 let out = op3.add_amp(op1).add_amp(op2).scale_amp(0.333);
                 let out = out.map(|x| [x as f32, x as f32]);
-                let time = ((input.len + input.post_release) * 48000.0) as usize;
+                let time = ((input.len + input.decay_time) * 48000.0) as usize;
                 Ok((
-                    ModData::Sound(Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000)),
+                    ModData::Sound(Sound::new(
+                        out.take(time).map(clamp_frame_to_i8).collect(),
+                        48000,
+                    )),
                     Box::new([]),
                 ))
             }
@@ -222,9 +247,12 @@ impl Mod for FourOpFm {
             7 => {
                 let out = op3.add_amp(op1).add_amp(op2).add_amp(op0).scale_amp(0.25);
                 let out = out.map(|x| [x as f32, x as f32]);
-                let time = ((input.len + input.post_release) * 48000.0) as usize;
+                let time = ((input.len + input.decay_time) * 48000.0) as usize;
                 Ok((
-                    ModData::Sound(Sound::new(out.take(time).map(clamp_frame_to_i8).collect(), 48000)),
+                    ModData::Sound(Sound::new(
+                        out.take(time).map(clamp_frame_to_i8).collect(),
+                        48000,
+                    )),
                     Box::new([]),
                 ))
             }

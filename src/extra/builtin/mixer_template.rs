@@ -2,9 +2,13 @@ use std::{borrow::Cow, mem::discriminant};
 
 use dasp::frame::Stereo;
 
-use crate::{resource::{ResConfig, ResState, StringError, Resource, Platform, JsonArray}, types::Sound};
+use crate::{
+    resource::{JsonArray, Mixer, ResConfig, ResState, Resource, StringError},
+    types::Sound,
+};
 
-pub struct SimplePlatform<'a> {
+/// A mixer template that is easy to create and use.
+pub struct SimpleMixer<'a> {
     name: String,
     id: String,
     desc: String,
@@ -19,8 +23,8 @@ pub struct SimplePlatform<'a> {
     check_state: fn(&ResState) -> bool,
 }
 
-impl<'a> SimplePlatform<'a> {
-    ///Create new SimplePlatform.
+impl<'a> SimpleMixer<'a> {
+    /// Create new SimpleMixer.
     pub fn new(
         name: String,
         id: String,
@@ -36,7 +40,7 @@ impl<'a> SimplePlatform<'a> {
             -> Result<(Sound, Box<ResState>, Box<[Option<&'a [Stereo<f32>]>]>), StringError>,
         check_state: fn(&ResState) -> bool,
     ) -> Self {
-        SimplePlatform {
+        SimpleMixer {
             name,
             id,
             desc,
@@ -48,7 +52,7 @@ impl<'a> SimplePlatform<'a> {
     }
 }
 
-impl<'a> Resource for SimplePlatform<'a> {
+impl<'a> Resource for SimpleMixer<'a> {
     fn orig_name(&self) -> Option<Cow<'_, str>> {
         Some(Cow::Borrowed(self.name.as_str()))
     }
@@ -73,7 +77,7 @@ impl<'a> Resource for SimplePlatform<'a> {
     }
 }
 
-impl<'a> Platform<'a> for SimplePlatform<'a> {
+impl<'a> Mixer<'a> for SimpleMixer<'a> {
     fn get_config(&self) -> ResConfig {
         self.values.clone()
     }

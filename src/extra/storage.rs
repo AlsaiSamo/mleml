@@ -2,15 +2,16 @@
 use std::collections::HashSet;
 use std::{hash::Hash, rc::Rc};
 
-///Trait for sets that contain `Rc<T>`.
+/// Trait for sets that contain `Rc<T>`.
 ///
-///This is used to deduplicate cached immutable data, like resource's state,
-///or a produced sound.
+/// This is used to deduplicate cached immutable data, like resource's state,
+/// or a produced sound.
 pub trait SetRc<T: ?Sized> {
-    ///Remove unused Rc's.
+
+    /// Remove unused Rc's.
     fn trim(&mut self);
 
-    ///Return an Rc that already has T or create a new one.
+    /// Return an Rc that already has T or create a new one.
     fn wrap(&mut self, value: Box<T>) -> Rc<T>;
 }
 

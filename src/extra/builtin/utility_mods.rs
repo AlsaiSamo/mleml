@@ -1,7 +1,14 @@
-use std::{borrow::Cow, mem::{discriminant, Discriminant}};
+use std::{
+    borrow::Cow,
+    mem::{discriminant, Discriminant},
+};
 
-use crate::{resource::{Resource, StringError, ResConfig, ResState, Mod, ModData}, types::{ReadyNote, Note}};
+use crate::{
+    resource::{Mod, ModData, ResConfig, ResState, Resource, StringError},
+    types::{Note, ReadyNote},
+};
 
+/// Mod to convert Note into ResNote.
 pub struct ConvertNote();
 
 impl Resource for ConvertNote {
@@ -81,7 +88,7 @@ impl Mod for ConvertNote {
                 .ok_or(StringError("length of the note is unspecified".to_string()))?
                 .get() as f64
                 * tick_length) as f32;
-            let post_release = (conf[3].as_i64().unwrap() as f64 * tick_length) as f32;
+            let decay_time = (conf[3].as_i64().unwrap() as f64 * tick_length) as f32;
             let pitch = input.pitch.map(|semitones| {
                 conf[0].as_f64().unwrap() as f32
                     * 2.0_f32.powf(
@@ -94,7 +101,7 @@ impl Mod for ConvertNote {
 
             let out = ReadyNote {
                 len,
-                post_release,
+                decay_time,
                 pitch,
                 velocity,
             };

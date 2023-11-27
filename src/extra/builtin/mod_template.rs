@@ -1,7 +1,11 @@
-use std::{mem::{Discriminant, discriminant}, borrow::Cow};
+use std::{
+    borrow::Cow,
+    mem::{discriminant, Discriminant},
+};
 
-use crate::resource::{ResConfig, ModData, ResState, StringError, Resource, JsonArray, Mod};
+use crate::resource::{JsonArray, Mod, ModData, ResConfig, ResState, Resource, StringError};
 
+/// A mod template that is easy to create and use.
 pub struct SimpleMod {
     name: String,
     id: String,
@@ -18,7 +22,7 @@ pub struct SimpleMod {
 }
 
 impl SimpleMod {
-    ///Create new SimpleMod.
+    /// Create new SimpleMod.
     pub fn new(
         name: String,
         id: String,

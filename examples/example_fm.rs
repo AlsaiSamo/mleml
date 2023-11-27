@@ -1,7 +1,7 @@
 use mleml::{
-    resource::{Mod, ResConfig, ModData},
-    types::ReadyNote,
     extra::builtin::FourOpFm,
+    resource::{Mod, ModData, ResConfig},
+    types::ReadyNote,
 };
 use serde_json::json;
 use std::{fs::OpenOptions, io::Write, path::Path};
@@ -10,7 +10,7 @@ fn main() {
     let fop = FourOpFm {};
     let note = ModData::ReadyNote(ReadyNote {
         len: 3.0,
-        post_release: 2.0,
+        decay_time: 2.0,
         pitch: Some(256.0),
         velocity: 64,
     });

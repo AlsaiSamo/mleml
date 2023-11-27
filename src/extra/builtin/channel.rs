@@ -1,36 +1,48 @@
-use std::{rc::Rc, mem::{discriminant, Discriminant}, borrow::Cow};
+use std::{
+    borrow::Cow,
+    mem::{discriminant, Discriminant},
+    rc::Rc,
+};
 
 use serde_json::json;
 
-use crate::{resource::{ResState, Mod, ResConfig, StringError, ModData, Resource, JsonArray}, types::{Note, Sound}, channel::{PipelineStateChanges, Channel}};
+use crate::{
+    channel::{Channel, PipelineStateChanges},
+    resource::{JsonArray, Mod, ModData, ResConfig, ResState, Resource, StringError},
+    types::{Note, Sound},
+};
 
+/// A channel that would find and automatically configure ConvertNote
 pub struct SimpleChannel {
-    ///Length of one tick in seconds
+    /// Length of one tick in seconds
     pub tick_length: f32,
 
-    ///Volume of the sound in platform's units
+    /// Volume of the sound in platform's units
     pub volume: u8,
 
-    ///Number of octaves above C-1.
+    /// Number of octaves above C-1.
     pub octave: u8,
 
-    ///Default length for a note, in ticks.
+    /// Default length for a note, in ticks.
     ///
-    ///Used if note's length is None.
+    /// Used if note's length is None.
     pub length: u8,
 
-    ///Duration of the sound after the note has been released, in ticks.
+    /// Duration of the sound after the note has been released, in ticks.
     pub post_release: u8,
 
+    /// Data pipeline
     pub mods: Vec<Rc<dyn Mod>>,
 
+    /// States for the pipeline
     pub states: Vec<Rc<ResState>>,
 
+    /// Configurations for the pipeline
     pub configs: Vec<Rc<ResConfig>>,
 }
 
 impl SimpleChannel {
-    ///Create new ChannelState
+    /// Create new ChannelState
     pub fn new(
         tick_length: f32,
         volume: u8,
@@ -109,8 +121,7 @@ impl Resource for SimpleChannel {
     }
 
     fn description(&self) -> &str {
-        "A simple channel that auto-configures a builtin Note -> ResNote converter. Requires
-        configuration through serialized PlatformValues."
+        "A simple channel that auto-configures a builtin Note -> ResNote converter."
     }
 }
 
@@ -118,8 +129,8 @@ impl Channel for SimpleChannel {
     fn play(
         &self,
         item: ModData,
-        state: &ResState,
-        config: &ResConfig
+        _state: &ResState,
+        config: &ResConfig,
     ) -> Result<(ModData, PipelineStateChanges, Box<ResState>), StringError> {
         if (self.mods.len() != self.states.len()) || (self.mods.len() != self.states.len()) {
             return Err(StringError(
@@ -128,7 +139,7 @@ impl Channel for SimpleChannel {
         }
 
         if !item.is_note() {
-            return Err(StringError("channel expects a Note".to_string()))
+            return Err(StringError("channel expects a Note".to_string()));
         }
 
         let mut item = item;
@@ -138,7 +149,14 @@ impl Channel for SimpleChannel {
             if self.mods[i].id() == "BUILTIN_CONVERT_NOTE" {
                 let cccc = config.get().get(0).unwrap().as_f64().unwrap();
                 let tick_len = config.get().get(1).unwrap().as_f64().unwrap();
-                let conf = JsonArray::from_value(json!([cccc, tick_len, self.octave, self.post_release, 0])).unwrap();
+                let conf = JsonArray::from_value(json!([
+                    cccc,
+                    tick_len,
+                    self.octave,
+                    self.post_release,
+                    0
+                ]))
+                .unwrap();
                 match self.mods[i].apply(&item, &conf, &self.states[i]) {
                     Ok((new, state)) => {
                         item = new;
@@ -146,7 +164,7 @@ impl Channel for SimpleChannel {
                     }
                     Err(what) => return Err(StringError(format!("mod error at {i}: {}", what))),
                 }
-                continue
+                continue;
             };
             if discriminant(&item) == self.mods[i].input_type() {
                 match self.mods[i].apply(&item, &self.configs[i], &self.states[i]) {

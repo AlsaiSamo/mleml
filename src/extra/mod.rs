@@ -1,4 +1,4 @@
-//! Collection of miscellaneous things that may be useful.
+//! Collection of things that are not used in the library but may be useful for the user.
 
 pub mod storage;
 

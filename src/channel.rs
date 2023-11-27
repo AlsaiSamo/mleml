@@ -1,54 +1,56 @@
 #![warn(missing_docs)]
-//!A channel is an isolated sound generator.
-//!
-//!A channel is represented with a stream of instructions or a sequence of channel's states.
-//!Channels cannot affect each other directly, but their actions may be accounted for
-//!during mixing.
+//! This module provides Pipeline, Channel, and related items.
 
-use std::{
-    mem::{discriminant, Discriminant},
-    rc::Rc,
-};
+use std::{mem::Discriminant, rc::Rc};
 
 use thiserror::Error;
 
-use crate::{
-    resource::{Mod, ModData, ResConfig, ResState, StringError, Resource},
-    types::{Note, Sound},
-};
+use crate::resource::{Mod, ModData, ResConfig, ResState, Resource, StringError};
 
+/// Error type for pipeline
 #[derive(Error, Debug)]
 pub enum PipelineError {
+    /// Index outside range
     #[error("index outside of range")]
     IndexOutsideRange,
+
+    /// Pipeline is broken (output of a mod does not match input of the next mod)
     #[error("pipeline broken at mod {0}")]
     PipelineBroken(usize),
+
     //TODO: add information (allowed input and output, position)
+    /// Inserting the mod will break the pipeline
     #[error("inserting mod will break the pipeline")]
     InsertBreaksPipeline,
 }
 
-//TODO: maybe rename to "ModVec" or similar?
+/// Trait that extends Vec<Rc<dyn Mod>> with helpful functions
 pub trait Pipeline {
+    /// Insert a mod into pipeline while not altering how it transforms types and
+    /// keeping it valid.
     fn insert_checked(&mut self, index: usize, item: Rc<dyn Mod>) -> Result<(), PipelineError>;
 
+    /// Check that the pipeline is valid (each mod produces type that the next mod accepts)
     fn is_valid(&self) -> Result<(), PipelineError>;
 
-    // vector of discriminants describing how data is transformed
-    // or "pipeline broken"
+    /// Get all type changes that happen in the pipeline
     fn type_flow(&self) -> Result<Vec<Discriminant<ModData>>, PipelineError>;
 
+    //TODO: get indices of mods that change types
+
+    /// Get input type of the first mod in the pipeline
     fn input_type(&self) -> Option<Discriminant<ModData>>;
 
+    /// Get output typee of the last mod in the pipeline
     fn output_type(&self) -> Option<Discriminant<ModData>>;
 }
 
 impl Pipeline for Vec<Rc<dyn Mod>> {
-    //fails if the mod changes the type (because this would break the pipeline or
-    // alter it)
-    //TODO: can if else chain be replaced to look nicer?
+    // TODO: allow insertion of the item in a place where it would fix a broken pipeline.
+    // TODO: can if else chain be replaced to look nicer?
     fn insert_checked(&mut self, index: usize, item: Rc<dyn Mod>) -> Result<(), PipelineError> {
         if item.input_type() != item.output_type() {
+            //A mod that changes data's type breaks or alters a valid pipeline
             Err(PipelineError::InsertBreaksPipeline)
         } else if index > self.len() {
             return Err(PipelineError::IndexOutsideRange);
@@ -70,7 +72,6 @@ impl Pipeline for Vec<Rc<dyn Mod>> {
         }
     }
 
-    //checks that each O matches the next I
     fn is_valid(&self) -> Result<(), PipelineError> {
         for i in 0..self.len() - 1 {
             if self[i].output_type() != self[i + 1].input_type() {
@@ -80,8 +81,6 @@ impl Pipeline for Vec<Rc<dyn Mod>> {
         Ok(())
     }
 
-    //the discriminants are added when output type changes
-    // So, the result may be empty, if there were no transformations.
     fn type_flow(&self) -> Result<Vec<Discriminant<ModData>>, PipelineError> {
         self.is_valid()?;
 
@@ -105,17 +104,23 @@ impl Pipeline for Vec<Rc<dyn Mod>> {
     }
 }
 
+/// Type to hold every newly created state when the pipeline is used
 pub type PipelineStateChanges = Vec<Box<ResState>>;
 
+/// Channels are expected to pass their input through a pipeline of mods.
 pub trait Channel: Resource {
+
+    /// Pass the data through the channel
     fn play(
         &self,
         item: ModData,
         state: &ResState,
-        config: &ResConfig
+        config: &ResConfig,
     ) -> Result<(ModData, PipelineStateChanges, Box<ResState>), StringError>;
 
+    /// Type that the channel accepts
     fn input_type(&self) -> Option<Discriminant<ModData>>;
 
+    /// Type that the channel returns
     fn output_type(&self) -> Option<Discriminant<ModData>>;
 }
