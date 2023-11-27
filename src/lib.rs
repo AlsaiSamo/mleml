@@ -46,5 +46,5 @@ pub mod channel;
 pub mod resource;
 pub mod types;
 
-#[cfg(feature = "extra")]
+//Feature-gating is in extra/mod.rs
 pub mod extra;
