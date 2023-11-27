@@ -3,5 +3,9 @@
 
 * Introduction
 This is a work-in-progress library for processing music macro language (MML).
-I don't have enough time to give to this project, so it is seriously unfinished.
-Not all design choices are final.
+It is designed to support all kinds of usage types, from a simple compiler to a more complex
+environment for working with audio.
+** What's included
++ Data types
++ Main traits (Resource, Mod, Channel, Mixer)
++ Some builtin resources
