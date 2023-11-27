@@ -1,13 +1,19 @@
 [package]
 name = "mleml"
+description = "Library for working with MML"
 version = "0.1.0"
+authors = ["imikoy"]
+keywords = ["audio", "pcm"]
+license = "MIT"
+homepage = "https://github.com/AlsaiSamo/mleml"
+repository = "https://github.com/AlsaiSamo/mleml.git"
+readme = "../README.md"
 edition = "2021"
 
 [features]
 default = ["extra"]
 extra = []
 builtin = []
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [[example]]
 name = "example_fm"
@@ -20,7 +26,6 @@ path = "examples/one_sound.rs"
 required-features = ["builtin"]
 
 [dependencies]
-#dlopen2 = "0.6"
 serde_json = "1.0"
 slice-dst = "1.5"
 thiserror = "1.0"
@@ -34,5 +39,3 @@ version = "1.0"
 features = ["derive", "std"]
 
 [dev-dependencies]
-# cpal = "0.15"
-# anyhow = "1.0"
