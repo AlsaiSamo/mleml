@@ -30,7 +30,7 @@ impl JsonArray {
 
     /// Create new JSON array.
     pub fn new() -> Self {
-        Self { 0: json!([]) }
+        Self(json!([]))
     }
 
     /// Convert vector of JSON values into JSON array, as long as no value is an array
@@ -50,7 +50,7 @@ impl JsonArray {
             .iter()
             .any(|x| !(x.is_array() | x.is_object()))
         {
-            true => Some(Self(item.into())),
+            true => Some(Self(item)),
             false => None,
         }
     }
@@ -73,6 +73,12 @@ impl JsonArray {
     /// Get array's length.
     pub fn len(&self) -> usize {
         self.0.as_array().unwrap().len()
+    }
+
+    /// Check if the array is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     /// Serialize into byte vector.
@@ -273,6 +279,14 @@ impl Hash for dyn Resource {
     }
 }
 
+/// Type to hold unused bits of sound.
+pub type LeftoverSound<'a> = Box<[Option<&'a [Stereo<f32>]>]>;
+
+/// Input type for the mixer.
+///
+/// Each sound has a flag to indicate whether it is a new sound or not.
+pub type PremixedSound<'a> = &'a [(bool, &'a [Stereo<f32>])];
+
 /// Mixer combines multiple sounds into one, returning it together with unused sound pieces.
 pub trait Mixer<'a>: Resource {
     /// Get mixer values.
@@ -284,12 +298,11 @@ pub trait Mixer<'a>: Resource {
     /// as the mixer may depend on their position.
     fn mix(
         &self,
-        channels: &[(bool, &'a [Stereo<f32>])],
+        channels: PremixedSound<'a>,
         play_time: u32,
         conf: &ResConfig,
         state: &ResState,
-        //TODO: type alias
-    ) -> Result<(Sound, Box<ResState>, Box<[Option<&'a [Stereo<f32>]>]>), StringError>;
+    ) -> Result<(Sound, Box<ResState>, LeftoverSound<'a>), StringError>;
 }
 
 /// Types that the mods can process.

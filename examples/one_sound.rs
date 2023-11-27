@@ -103,7 +103,7 @@ fn main() {
                 .to_owned(),
         )
         .unwrap(),
-        for<'a, 'b, 'c, 'd, 'e> |input: &'b [(bool, &'a [Stereo<f32>])],
+        for<'a, 'b, 'c, 'd, 'e> |input: &'b [(bool, &'e [Stereo<f32>])],
                                  _play: u32,
                                  _conf: &'c ResConfig,
                                  _state: &'d ResState|
@@ -139,12 +139,13 @@ fn main() {
         .unwrap()
         .0;
     // let sines_note: Sound = todo!();
+    let premix = vec![
+                (true, square_note.as_sound().unwrap().as_ref()),
+                (true, sines_note.as_sound().unwrap().as_ref()),
+            ];
     let res = mixer
         .mix(
-            &[
-                (true, &square_note.as_sound().unwrap().as_ref()),
-                (true, &sines_note.as_sound().unwrap().as_ref()),
-            ],
+            premix.as_slice(),
             9999,
             &JsonArray::new(),
             &[],

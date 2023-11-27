@@ -322,7 +322,7 @@ fn play_fn_operator(
     //Frequency multipler
     let multiplier = match params.ml {
         ml if ml < 0 => unreachable!(),
-        ml if ml == 0 => 0.5,
+        0 => 0.5,
         ml => ml as f64,
     };
 
@@ -394,7 +394,7 @@ fn play_fn_operator(
     let mut count = release_frames as usize;
     let release = iter::from_fn(move || {
         count -= 1;
-        if count <= 0 {
+        if count == 0 {
             None
         } else {
             Some(count as f64 / release_frames * release_level)

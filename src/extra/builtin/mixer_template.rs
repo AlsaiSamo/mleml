@@ -3,7 +3,7 @@ use std::{borrow::Cow, mem::discriminant};
 use dasp::frame::Stereo;
 
 use crate::{
-    resource::{JsonArray, Mixer, ResConfig, ResState, Resource, StringError},
+    resource::{JsonArray, Mixer, ResConfig, ResState, Resource, StringError, LeftoverSound, PremixedSound},
     types::Sound,
 };
 
@@ -19,7 +19,7 @@ pub struct SimpleMixer<'a> {
         u32,
         &ResConfig,
         &ResState,
-    ) -> Result<(Sound, Box<ResState>, Box<[Option<&'a [Stereo<f32>]>]>), StringError>,
+    ) -> Result<(Sound, Box<ResState>, LeftoverSound<'a>), StringError>,
     check_state: fn(&ResState) -> bool,
 }
 
@@ -32,12 +32,12 @@ impl<'a> SimpleMixer<'a> {
         schema: ResConfig,
         values: ResConfig,
         mix: fn(
-            &[(bool, &'a [Stereo<f32>])],
+            PremixedSound,
             u32,
             &ResConfig,
             &ResState,
         )
-            -> Result<(Sound, Box<ResState>, Box<[Option<&'a [Stereo<f32>]>]>), StringError>,
+            -> Result<(Sound, Box<ResState>, LeftoverSound<'a>), StringError>,
         check_state: fn(&ResState) -> bool,
     ) -> Self {
         SimpleMixer {
@@ -84,11 +84,11 @@ impl<'a> Mixer<'a> for SimpleMixer<'a> {
 
     fn mix(
         &self,
-        channels: &[(bool, &'a [Stereo<f32>])],
+        channels: PremixedSound<'a>,
         play_time: u32,
         conf: &ResConfig,
         state: &ResState,
-    ) -> Result<(Sound, Box<ResState>, Box<[Option<&'a [Stereo<f32>]>]>), StringError> {
+    ) -> Result<(Sound, Box<ResState>, LeftoverSound<'a>), StringError> {
         (self.mix)(channels, play_time, conf, state)
     }
 }
