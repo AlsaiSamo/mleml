@@ -14,6 +14,11 @@ name = "example_fm"
 path = "examples/example_fm.rs"
 required-features = ["builtin"]
 
+[[example]]
+name = "one_sound"
+path = "examples/one_sound.rs"
+required-features = ["builtin"]
+
 [dependencies]
 #dlopen2 = "0.6"
 serde_json = "1.0"

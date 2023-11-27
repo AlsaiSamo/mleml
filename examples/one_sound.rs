@@ -8,10 +8,8 @@ use dasp::{
     Frame, Signal,
 };
 use mleml::{
-    extra::builtin::{SimpleMod, SimpleMixer},
-    resource::Mixer,
-    resource::{JsonArray, Mod, ModData, ResConfig, ResState, StringError},
-    types::{ReadyNote, Sound},
+    resource::{JsonArray, ModData, ResConfig, ResState, StringError, Mod, Mixer},
+    types::{ReadyNote, Sound}, extra::builtin::{SimpleMod, SimpleMixer},
 };
 use serde_json::json;
 use std::{fs::OpenOptions, io::Write, mem::discriminant, path::Path};
