@@ -14,7 +14,6 @@ use std::{
     mem::{discriminant, Discriminant},
 };
 
-
 //dasp allows generalising over impl Signal, but I couldn't use that, this
 //enum is used instead.
 enum Wave {

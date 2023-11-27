@@ -8,8 +8,9 @@ use dasp::{
     Frame, Signal,
 };
 use mleml::{
-    resource::{JsonArray, ModData, ResConfig, ResState, StringError, Mod, Mixer},
-    types::{ReadyNote, Sound}, extra::builtin::{SimpleMod, SimpleMixer},
+    extra::builtin::{SimpleMixer, SimpleMod},
+    resource::{JsonArray, Mixer, Mod, ModData, ResConfig, ResState, StringError},
+    types::{ReadyNote, Sound},
 };
 use serde_json::json;
 use std::{fs::OpenOptions, io::Write, mem::discriminant, path::Path};
@@ -111,9 +112,7 @@ fn main() {
             StringError,
         > {
             if input.len() != 2 {
-                Err(StringError(
-                    "mixer needs exactly two channels".to_owned(),
-                ))
+                Err(StringError("mixer needs exactly two channels".to_owned()))
             } else {
                 let mut out = input[0].1.to_owned();
                 add_in_place(&mut out, input[1].1);

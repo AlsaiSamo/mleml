@@ -7,7 +7,6 @@ use std::{hash::Hash, rc::Rc};
 /// This is used to deduplicate cached immutable data, like resource's state,
 /// or a produced sound.
 pub trait SetRc<T: ?Sized> {
-
     /// Remove unused Rc's.
     fn trim(&mut self);
 

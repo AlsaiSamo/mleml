@@ -109,7 +109,6 @@ pub type PipelineStateChanges = Vec<Box<ResState>>;
 
 /// Channels are expected to pass their input through a pipeline of mods.
 pub trait Channel: Resource {
-
     /// Pass the data through the channel
     fn play(
         &self,
