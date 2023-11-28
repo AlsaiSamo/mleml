@@ -118,8 +118,8 @@ pub trait Channel: Resource {
     ) -> Result<(ModData, PipelineStateChanges, Box<ResState>), StringError>;
 
     /// Type that the channel accepts
-    fn input_type(&self) -> Option<Discriminant<ModData>>;
+    fn input_type(&self) -> Discriminant<ModData>;
 
     /// Type that the channel returns
-    fn output_type(&self) -> Option<Discriminant<ModData>>;
+    fn output_type(&self) -> Discriminant<ModData>;
 }

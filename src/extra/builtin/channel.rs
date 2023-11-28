@@ -187,11 +187,11 @@ impl Channel for SimpleChannel {
         }
     }
 
-    fn input_type(&self) -> Option<Discriminant<ModData>> {
-        Some(discriminant(&ModData::Note(Note::default())))
+    fn input_type(&self) -> Discriminant<ModData> {
+        discriminant(&ModData::Note(Note::default()))
     }
 
-    fn output_type(&self) -> Option<Discriminant<ModData>> {
-        Some(discriminant(&ModData::Sound(Sound::new(Box::new([]), 0))))
+    fn output_type(&self) -> Discriminant<ModData> {
+        discriminant(&ModData::Sound(Sound::new(Box::new([]), 0)))
     }
 }
