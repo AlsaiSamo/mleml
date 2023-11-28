@@ -47,8 +47,8 @@ impl SimpleMod {
 }
 
 impl Resource for SimpleMod {
-    fn orig_name(&self) -> Option<Cow<'_, str>> {
-        Some(Cow::Borrowed(self.name.as_str()))
+    fn orig_name(&self) -> &str {
+        self.name.as_str()
     }
 
     fn id(&self) -> &str {

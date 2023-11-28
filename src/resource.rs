@@ -135,7 +135,7 @@ pub struct StringError(pub String);
 //TODO: change description to be like the name?
 pub trait Resource {
     ///Resource's original name.
-    fn orig_name(&self) -> Option<Cow<'_, str>>;
+    fn orig_name(&self) -> &str;
 
     ///Unique ID of the resource.
     fn id(&self) -> &str;

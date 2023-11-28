@@ -53,8 +53,8 @@ impl<S: Signal> Iterator for IterSignal<S> {
 pub struct FourOpFm();
 
 impl Resource for FourOpFm {
-    fn orig_name(&self) -> Option<borrow::Cow<'_, str>> {
-        Some(borrow::Cow::Borrowed("Simple FM"))
+    fn orig_name(&self) -> &str {
+        "Simple FM synthesizer"
     }
 
     fn id(&self) -> &str {

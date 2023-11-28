@@ -1,4 +1,4 @@
-use std::{borrow::Cow, mem::discriminant};
+use std::mem::discriminant;
 
 use dasp::frame::Stereo;
 
@@ -53,8 +53,8 @@ impl<'a> SimpleMixer<'a> {
 }
 
 impl<'a> Resource for SimpleMixer<'a> {
-    fn orig_name(&self) -> Option<Cow<'_, str>> {
-        Some(Cow::Borrowed(self.name.as_str()))
+    fn orig_name(&self) -> &str {
+        self.name.as_str()
     }
 
     fn id(&self) -> &str {

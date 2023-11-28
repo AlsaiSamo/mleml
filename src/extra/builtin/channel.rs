@@ -14,8 +14,11 @@ use crate::{
 /// A channel that would find and automatically configure ConvertNote
 pub struct SimpleChannel {
 
+    /// Name of the channel
+    pub name: String,
+
     /// ID of the channel
-    id: String,
+    pub id: String,
 
     /// Length of one tick in seconds
     pub tick_length: f32,
@@ -47,6 +50,7 @@ pub struct SimpleChannel {
 impl SimpleChannel {
     /// Create new ChannelState
     pub fn new(
+        name: String,
         id: String,
         tick_length: f32,
         volume: u8,
@@ -58,6 +62,7 @@ impl SimpleChannel {
         configs: Vec<Rc<ResConfig>>,
     ) -> Self {
         SimpleChannel {
+            name,
             id,
             tick_length,
             volume,
@@ -72,8 +77,8 @@ impl SimpleChannel {
 }
 
 impl Resource for SimpleChannel {
-    fn orig_name(&self) -> Option<Cow<'_, str>> {
-        Some(Cow::Borrowed("Simple channel"))
+    fn orig_name(&self) -> &str {
+        self.name.as_str()
     }
 
     fn id(&self) -> &str {

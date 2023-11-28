@@ -12,8 +12,8 @@ use crate::{
 pub struct ConvertNote();
 
 impl Resource for ConvertNote {
-    fn orig_name(&self) -> Option<Cow<'_, str>> {
-        Some(Cow::Borrowed("Prepare note for playing"))
+    fn orig_name(&self) -> &str {
+        "Prepare note for playing"
     }
 
     fn id(&self) -> &str {
