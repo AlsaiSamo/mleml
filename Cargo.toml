@@ -1,6 +1,6 @@
 [package]
 name = "mleml"
-description = "Library for working with MML"
+description = "Framework library for working with MML"
 version = "0.1.0"
 authors = ["imikoy"]
 keywords = ["audio", "pcm"]
@@ -37,5 +37,3 @@ features = ["slice", "slice-boxed", "signal", "signal-boxed", "interpolate", "in
 [dependencies.serde]
 version = "1.0"
 features = ["derive", "std"]
-
-[dev-dependencies]
