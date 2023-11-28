@@ -2,6 +2,8 @@
 
 #[cfg(feature = "extra")]
 pub mod storage;
+#[cfg(feature = "extra")]
+pub mod config_builder;
 
 #[cfg(feature = "builtin")]
 pub mod builtin;
