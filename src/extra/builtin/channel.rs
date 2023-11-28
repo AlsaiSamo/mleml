@@ -7,8 +7,7 @@ use std::{
 use serde_json::json;
 
 use crate::{
-    channel::{Channel, PipelineStateChanges},
-    resource::{JsonArray, Mod, ModData, ResConfig, ResState, Resource, StringError},
+    resource::{JsonArray, Mod, ModData, ResConfig, ResState, Resource, StringError, Channel, PipelineStateChanges},
     types::{Note, Sound},
 };
 

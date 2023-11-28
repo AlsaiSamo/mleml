@@ -42,7 +42,6 @@
 //! On all invocations of a channel or a mixer, their output state is reused,
 //! like mixer's leftover sounds.
 
-pub mod channel;
 pub mod resource;
 pub mod types;
 
