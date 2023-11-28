@@ -9,7 +9,6 @@ use dasp::{
 };
 use serde_json::Value as JsonValue;
 use std::{
-    borrow::{self},
     iter::{self, Chain, FromFn},
     mem::{discriminant, Discriminant},
 };

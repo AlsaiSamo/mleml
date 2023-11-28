@@ -3,7 +3,9 @@ use std::mem::discriminant;
 use dasp::frame::Stereo;
 
 use crate::{
-    resource::{JsonArray, Mixer, ResConfig, ResState, Resource, StringError, LeftoverSound, PremixedSound},
+    resource::{
+        JsonArray, LeftoverSound, Mixer, PremixedSound, ResConfig, ResState, Resource, StringError,
+    },
     types::Sound,
 };
 
@@ -36,8 +38,7 @@ impl<'a> SimpleMixer<'a> {
             u32,
             &ResConfig,
             &ResState,
-        )
-            -> Result<(Sound, Box<ResState>, LeftoverSound<'a>), StringError>,
+        ) -> Result<(Sound, Box<ResState>, LeftoverSound<'a>), StringError>,
         check_state: fn(&ResState) -> bool,
     ) -> Self {
         SimpleMixer {

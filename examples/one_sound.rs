@@ -140,16 +140,11 @@ fn main() {
         .0;
     // let sines_note: Sound = todo!();
     let premix = vec![
-                (true, square_note.as_sound().unwrap().as_ref()),
-                (true, sines_note.as_sound().unwrap().as_ref()),
-            ];
+        (true, square_note.as_sound().unwrap().as_ref()),
+        (true, sines_note.as_sound().unwrap().as_ref()),
+    ];
     let res = mixer
-        .mix(
-            premix.as_slice(),
-            9999,
-            &JsonArray::new(),
-            &[],
-        )
+        .mix(premix.as_slice(), 9999, &JsonArray::new(), &[])
         .unwrap();
     let synthesized: Vec<u8> = res
         .0

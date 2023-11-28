@@ -1,5 +1,4 @@
 use std::{
-    borrow::Cow,
     mem::{discriminant, Discriminant},
     rc::Rc,
 };
@@ -7,13 +6,15 @@ use std::{
 use serde_json::json;
 
 use crate::{
-    resource::{JsonArray, Mod, ModData, ResConfig, ResState, Resource, StringError, Channel, PipelineStateChanges},
+    resource::{
+        Channel, JsonArray, Mod, ModData, PipelineStateChanges, ResConfig, ResState, Resource,
+        StringError,
+    },
     types::{Note, Sound},
 };
 
 /// A channel that would find and automatically configure ConvertNote
 pub struct SimpleChannel {
-
     /// Name of the channel
     pub name: String,
 

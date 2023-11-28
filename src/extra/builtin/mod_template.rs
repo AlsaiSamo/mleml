@@ -1,7 +1,4 @@
-use std::{
-    borrow::Cow,
-    mem::{discriminant, Discriminant},
-};
+use std::mem::{discriminant, Discriminant};
 
 use crate::resource::{JsonArray, Mod, ModData, ResConfig, ResState, Resource, StringError};
 

@@ -1,10 +1,9 @@
 //! Builder for configurations that uses a schema.
-use std::mem::{Discriminant, discriminant};
+use std::mem::{discriminant, Discriminant};
 
 use thiserror::Error;
 
-use crate::resource::{ResConfig, JsonValue};
-
+use crate::resource::{JsonValue, ResConfig};
 
 /// Errors that can be encountered while building configuration.
 #[derive(Error, Debug, PartialEq, Eq)]

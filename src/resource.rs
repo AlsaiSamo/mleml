@@ -6,9 +6,9 @@ use dasp::frame::Stereo;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, to_vec};
 use std::{
-    borrow::Cow,
     hash::{Hash, Hasher},
-    mem::Discriminant, rc::Rc,
+    mem::Discriminant,
+    rc::Rc,
 };
 use thiserror::Error;
 
