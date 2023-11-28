@@ -7,7 +7,7 @@ keywords = ["audio", "pcm"]
 license = "MIT"
 homepage = "https://github.com/AlsaiSamo/mleml"
 repository = "https://github.com/AlsaiSamo/mleml.git"
-readme = "../README.md"
+readme = "readme.md"
 edition = "2021"
 
 [features]
