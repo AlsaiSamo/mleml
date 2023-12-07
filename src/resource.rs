@@ -401,3 +401,34 @@ pub trait Channel: Resource {
     /// Type that the channel returns
     fn output_type(&self) -> Discriminant<ModData>;
 }
+
+/// What note to play on what channel.
+#[derive(Debug, Default, Clone)]
+pub struct ChannelNumberAndNote {
+    /// Channel number to play the note on.
+    pub channel_number: usize,
+
+    /// Note to play.
+    pub note: Note,
+}
+
+/// This is a controller of a chip, which is a combination of Note->Sound channels
+/// and a mixer.
+pub trait Chip: Resource {
+    /// Start playing note(s) on chip and get the next sound bit.
+    ///
+    /// Note: returned sound is expected to be a sound generated during period without
+    /// keyon/keyoff events, which may be shorter than the note(s) that were given.
+    fn play(
+        &mut self,
+        notes: &[ChannelNumberAndNote],
+        state: &ResState,
+        config: &ResConfig,
+    ) -> Result<(Sound, Box<ResState>), StringError>;
+
+    /// Get the last sound bit - up until `ticks` after last keyoff event.
+    fn flush(ticks: usize) -> Result<(Sound, Box<ResState>), StringError>;
+
+    /// Reset chip's state
+    fn reset(&mut self);
+}
