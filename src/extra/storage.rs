@@ -14,9 +14,10 @@ pub trait SetRc<T: ?Sized> {
     fn wrap(&mut self, value: Box<T>) -> Rc<T>;
 }
 
+#[sealed]
 impl<T: ?Sized + Eq + Hash> SetRc<T> for HashSet<Rc<T>> {
     fn trim(&mut self) {
-        self.retain(|r| Rc::strong_count(r) == 1);
+        self.retain(|r| Rc::strong_count(r) != 1);
     }
 
     fn wrap(&mut self, value: Box<T>) -> Rc<T> {
@@ -37,23 +38,26 @@ mod tests {
         let s2: &str = "Two";
         let s3: &str = "Three";
         let s4: &str = "Four";
+        let s5: &str = "Five";
 
         //All Rc's have strong count of 1
         let rc1: Rc<str> = Rc::from(s1);
         let rc2: Rc<str> = Rc::from(s2);
         let rc3: Rc<str> = Rc::from(s3);
         let rc4: Rc<str> = Rc::from(s4);
+        let rc5: Rc<str> = Rc::from(s5);
 
         //Cloned Rc's now have strong count of 2
         let _rc11: Rc<str> = rc1.clone();
         let _rc33: Rc<str> = rc3.clone();
+        let _rc55: Rc<str> = rc5.clone();
 
-        let mut set: HashSet<Rc<str>> = HashSet::from([rc1, rc2, rc3, rc4]);
-        assert_eq!(set.len(), 4);
+        let mut set: HashSet<Rc<str>> = HashSet::from([rc1, rc2, rc3, rc4, rc5]);
+        assert_eq!(set.len(), 5);
         //Should remove rc2 and rc4
         set.trim();
-        //Only rc1 and rc3 remain as their strong count is 2
-        assert_eq!(set.len(), 2);
+        //Only rc1, rc3 and rc5 remain as their strong count is 2
+        assert_eq!(set.len(), 3);
     }
     #[test]
     fn wrapping_does_not_insert_duplicate_data() {
