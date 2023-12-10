@@ -3,6 +3,7 @@
 
 use crate::types::{Note, ReadyNote, Sound};
 use dasp::frame::Stereo;
+use sealed::sealed;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, to_vec};
 use std::{
@@ -303,6 +304,7 @@ pub enum PipelineError {
 }
 
 /// Trait that extends Vec<Rc<dyn Mod>> with helpful functions
+#[sealed]
 pub trait Pipeline {
     /// Insert a mod into pipeline while not altering how it transforms types and
     /// keeping it valid.
@@ -323,6 +325,7 @@ pub trait Pipeline {
     fn output_type(&self) -> Option<Discriminant<ModData>>;
 }
 
+#[sealed]
 impl Pipeline for Vec<Rc<dyn Mod>> {
     // TODO: allow insertion of the item in a place where it would fix a broken pipeline.
     // TODO: can if else chain be replaced to look nicer?
