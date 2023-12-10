@@ -2,15 +2,80 @@
 use std::collections::HashSet;
 use std::{hash::Hash, rc::Rc};
 
-/// Trait for sets that contain `Rc<T>`.
+use dasp::frame::Stereo;
+use ordered_float::OrderedFloat;
+use sealed::sealed;
+use slice_dst::SliceWithHeader;
+
+use crate::types::Sound;
+
+//TODO: tests!
+
+/// Trait for sets that contain [`Rc<T>`].
 ///
-/// This is used to deduplicate cached immutable data, like resource's state,
-/// or a produced sound.
+/// This is used to cache or deduplicate data, for example resource states.
+///
+/// # Examples
+///
+/// ```
+/// # use std::collections::HashSet;
+/// # use std::rc::Rc;
+/// # use mleml::resource::Mod;
+/// let mods: HashSet<Rc<[u8]>> = HashSet::new();
+/// ```
+#[sealed]
 pub trait SetRc<T: ?Sized> {
-    /// Remove unused Rc's.
+    /// Remove [`Rc`]s that do not exist outside of the set.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::collections::HashSet;
+    /// # use std::rc::Rc;
+    /// # use serde_json::{json, Value};
+    /// # use mleml::resource::JsonArray;
+    /// # use mleml::types::Sound;
+    /// # use mleml::extra::storage::SetRc;
+    /// let mut configs: HashSet<Rc<JsonArray>> = HashSet::new();
+    /// let config_1: Rc<JsonArray> = Rc::new(JsonArray::from_value(json!([5, "six"]))
+    ///     .expect("failed to create JSON array"));
+    /// configs.insert(config_1.clone());
+    ///
+    /// // A copy of the Rc exists outside of the set
+    /// assert_eq!(Rc::strong_count(&config_1), 2);
+    ///
+    /// drop(config_1);
+    /// // Now the Rc is only available in the set, and so will be removed
+    /// configs.trim();
+    ///
+    /// assert!(configs.is_empty());
+    /// ```
     fn trim(&mut self);
 
-    /// Return an Rc that already has T or create a new one.
+    /// Store data in the set if it was not already present and return [`Rc<T>`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::collections::HashSet;
+    /// # use std::rc::Rc;
+    /// # use serde_json::{json, Value};
+    /// # use mleml::resource::JsonArray;
+    /// # use mleml::resource::ResState;
+    /// # use mleml::types::Sound;
+    /// # use mleml::extra::storage::SetRc;
+    /// let mut states: HashSet<Rc<ResState>> = HashSet::new();
+    ///
+    /// // These pieces of data are identical
+    /// let st1: Box<ResState> = Box::new([0, 0, 15, 3, 6]);
+    /// let st2: Box<ResState> = st1.clone();
+    ///
+    /// let rc1: Rc<ResState> = states.wrap(st1);
+    /// // Because data inserted into the set was identical, this Rc is actually a clone of rc1.
+    /// let rc2: Rc<ResState> = states.wrap(st2);
+    ///
+    /// assert_eq!(rc1, rc2);
+    /// ```
     fn wrap(&mut self, value: Box<T>) -> Rc<T>;
 }
 
@@ -23,6 +88,67 @@ impl<T: ?Sized + Eq + Hash> SetRc<T> for HashSet<Rc<T>> {
     fn wrap(&mut self, value: Box<T>) -> Rc<T> {
         let new = Rc::from(value);
         self.get_or_insert_owned(&new).clone()
+    }
+}
+
+/// Representation of [`Sound`] that is used to allow storing sound data in `HashSet`.
+///
+/// This is required because sound data uses floating point numbers which cannot
+/// be stored in a set. `OrderedSound` uses `OrderedFloat` instead.
+///
+/// You won't probably need to use this type directly, see [`wrap_sound()`][SetRcSound::wrap_sound()]
+#[derive(Debug, Hash, Eq, PartialEq)]
+#[repr(transparent)]
+pub struct OrderedSound(SliceWithHeader<usize, Stereo<OrderedFloat<f32>>>);
+
+/// Trait defined for `HashSet<Rc<OrderedSound>>` to allow using it to store [`Sound`] data.
+#[sealed]
+pub trait SetRcSound {
+    //TODO: safety
+    /// Store [`Sound`] in the set like [`SetRc::wrap()`].
+    ///
+    /// Under the hood it stores [`OrderedSound`] and reinterprets it as `Sound`
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use std::collections::HashSet;
+    /// # use std::rc::Rc;
+    /// # use serde_json::{json, Value};
+    /// # use mleml::resource::JsonArray;
+    /// # use mleml::resource::ResState;
+    /// # use mleml::types::Sound;
+    /// # use mleml::extra::storage::{SetRcSound, OrderedSound};
+    /// let mut sounds: HashSet<Rc<OrderedSound>> = HashSet::new();
+    ///
+    /// // s1 and s2 contain identical data, s3 is unique
+    /// let s1: Box<Sound> = Sound::new(Box::new([[0.5, 0.5], [0.6, 0.6]]), 48000);
+    /// let s2: Box<Sound> = Sound::new(Box::new([[0.5, 0.5], [0.6, 0.6]]), 48000);
+    /// let s3: Box<Sound> = Sound::new(Box::new([[0.1, 0.1], [0.0, 0.0]]), 48000);
+    ///
+    /// let r1: Rc<Sound> = sounds.wrap_sound(s1);
+    /// let r2: Rc<Sound> = sounds.wrap_sound(s2);
+    /// let r3: Rc<Sound> = sounds.wrap_sound(s3);
+    ///
+    /// // r1 and r2 are identical due to s1 and s2 containing identical data
+    /// assert_eq!(r1, r2);
+    /// // r3 is unique
+    /// assert_ne!(r1, r3);
+    /// ```
+    fn wrap_sound(&mut self, value: Box<Sound>) -> Rc<Sound>;
+}
+
+#[sealed]
+impl SetRcSound for HashSet<Rc<OrderedSound>> {
+    fn wrap_sound(&mut self, value: Box<Sound>) -> Rc<Sound> {
+        unsafe {
+            //convert to OrderedSound
+            let new = Box::from_raw(Box::into_raw(value) as *mut OrderedSound);
+            //store the OrderedSound
+            let stored = self.wrap(new);
+            //convert back to Sound
+            Rc::from_raw(Rc::into_raw(stored) as *const Sound)
+        }
     }
 }
 
