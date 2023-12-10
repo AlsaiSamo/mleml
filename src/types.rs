@@ -49,12 +49,17 @@ pub struct ReadyNote {
 }
 
 /// Immutable slice of PCM (Stereo, 32 bit float) data with sampling rate.
-pub struct Sound(Box<SliceWithHeader<u32, Stereo<f32>>>);
+#[derive(Debug, PartialEq)]
+#[repr(transparent)]
+pub struct Sound(SliceWithHeader<u32, Stereo<f32>>);
 
 impl Sound {
     /// Create new sound.
-    pub fn new(data: Box<[Stereo<f32>]>, sampling_rate: u32) -> Sound {
-        Sound(SliceWithHeader::new(sampling_rate, data.into_vec()))
+    //TODO: accept Cow<data> and call to_owned()?
+    pub fn new(data: Box<[Stereo<f32>]>, sampling_rate: u32) -> Box<Sound> {
+        let slice: Box<SliceWithHeader<u32, Stereo<f32>>> =
+            slice_dst::SliceWithHeader::from_slice(sampling_rate, &data);
+        unsafe { Box::from_raw(Box::into_raw(slice) as *mut Sound) }
     }
 
     /// Get sampling rate.
