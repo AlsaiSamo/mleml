@@ -179,7 +179,7 @@ pub trait Mixer<'a>: Resource {
         play_time: u32,
         conf: &ResConfig,
         state: &ResState,
-    ) -> Result<(Sound, Box<ResState>, LeftoverSound<'a>), StringError>;
+    ) -> Result<(Box<Sound>, Box<ResState>, LeftoverSound<'a>), StringError>;
 }
 
 /// Types that the mods can process.
@@ -194,7 +194,7 @@ pub enum ModData {
     ReadyNote(ReadyNote),
 
     /// Sound
-    Sound(Sound),
+    Sound(Box<Sound>),
 }
 
 impl ModData {
@@ -424,10 +424,10 @@ pub trait Chip: Resource {
         notes: &[ChannelNumberAndNote],
         state: &ResState,
         config: &ResConfig,
-    ) -> Result<(Sound, Box<ResState>), StringError>;
+    ) -> Result<(Box<Sound>, Box<ResState>), StringError>;
 
     /// Get the last sound bit - up until `ticks` after last keyoff event.
-    fn flush(ticks: usize) -> Result<(Sound, Box<ResState>), StringError>;
+    fn flush(ticks: usize) -> Result<(Box<Sound>, Box<ResState>), StringError>;
 
     /// Reset chip's state
     fn reset(&mut self);

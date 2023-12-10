@@ -108,7 +108,7 @@ fn main() {
                                  _conf: &'c ResConfig,
                                  _state: &'d ResState|
                                  -> Result<
-            (Sound, Box<[u8]>, Box<[Option<&'a [Stereo<f32>]>]>),
+            (Box<Sound>, Box<ResState>, Box<[Option<&'a [Stereo<f32>]>]>),
             StringError,
         > {
             if input.len() != 2 {

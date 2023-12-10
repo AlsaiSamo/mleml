@@ -21,7 +21,7 @@ pub struct SimpleMixer<'a> {
         u32,
         &ResConfig,
         &ResState,
-    ) -> Result<(Sound, Box<ResState>, LeftoverSound<'a>), StringError>,
+    ) -> Result<(Box<Sound>, Box<ResState>, LeftoverSound<'a>), StringError>,
     check_state: fn(&ResState) -> bool,
 }
 
@@ -38,7 +38,7 @@ impl<'a> SimpleMixer<'a> {
             u32,
             &ResConfig,
             &ResState,
-        ) -> Result<(Sound, Box<ResState>, LeftoverSound<'a>), StringError>,
+        ) -> Result<(Box<Sound>, Box<ResState>, LeftoverSound<'a>), StringError>,
         check_state: fn(&ResState) -> bool,
     ) -> Self {
         SimpleMixer {
@@ -89,7 +89,7 @@ impl<'a> Mixer<'a> for SimpleMixer<'a> {
         play_time: u32,
         conf: &ResConfig,
         state: &ResState,
-    ) -> Result<(Sound, Box<ResState>, LeftoverSound<'a>), StringError> {
+    ) -> Result<(Box<Sound>, Box<ResState>, LeftoverSound<'a>), StringError> {
         (self.mix)(channels, play_time, conf, state)
     }
 }
