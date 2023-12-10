@@ -17,7 +17,7 @@ use thiserror::Error;
 pub(crate) type JsonValue = serde_json::Value;
 
 ///Flat JSON array of arbitrary values.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct JsonArray(JsonValue);
 
 impl Default for JsonArray {
@@ -141,7 +141,7 @@ pub enum ConfigError {
 
 //TODO: use Cow? Would this be significant?
 /// Arbitrary error message for resources.
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Default, Clone)]
 #[error("resource error: {0}")]
 pub struct StringError(pub String);
 

@@ -18,6 +18,7 @@ pub enum ConfigBuilderError {
 }
 
 /// State of configuration builder in which the config is not fully built yet.
+#[derive(Debug)]
 pub struct ConfBuilding<'a> {
     ///Schema of the module.
     schema: &'a ResConfig,
@@ -30,6 +31,7 @@ pub struct ConfBuilding<'a> {
 ///
 /// Validates all provided values and their count against the schema, comparing
 /// the types.
+#[derive(Debug)]
 pub enum ConfigBuilder<'a> {
     /// Configuration is still building.
     Builder(ConfBuilding<'a>),

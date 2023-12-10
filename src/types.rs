@@ -5,7 +5,7 @@ use slice_dst::SliceWithHeader;
 use std::num::{NonZeroI8, NonZeroU8};
 
 /// Note, defined in abstract, platform-defined values.
-#[derive(Clone, Default)]
+#[derive(Debug, Default, Clone)]
 #[repr(C)]
 pub struct Note {
     /// Note length in ticks.
@@ -33,7 +33,7 @@ pub struct Note {
 }
 
 /// Note, defined in SI units.
-#[derive(Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ReadyNote {
     /// Length of a note in seconds.
     pub len: f32,
