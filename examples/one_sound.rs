@@ -54,7 +54,7 @@ fn main() {
         "TWO_SINES".to_owned(),
         "Sine modulated with another sine".to_owned(),
         //Modulating sine's frequency
-        JsonArray::from_vec(vec![json!(440)]).unwrap(),
+        JsonArray::from_values(vec![json!(440)]).unwrap(),
         |input, conf, _state| -> Result<(ModData, Box<[u8]>), StringError> {
             let input = input
                 .as_ready_note()
@@ -96,7 +96,7 @@ fn main() {
         "MIXER".to_owned(),
         "Adds two channels together crudely".to_owned(),
         JsonArray::new(),
-        JsonArray::from_vec(
+        JsonArray::from_values(
             json!([8.0, 0.00028, 96, 150.0, 255])
                 .as_array()
                 .unwrap()
@@ -135,7 +135,11 @@ fn main() {
     let square_note = square.apply(&note, &JsonArray::new(), &[]).unwrap().0;
     // let square_note: Sound = todo!();
     let sines_note = two_sine
-        .apply(&note, &JsonArray::from_vec(vec![json!(256)]).unwrap(), &[])
+        .apply(
+            &note,
+            &JsonArray::from_values(vec![json!(256)]).unwrap(),
+            &[],
+        )
         .unwrap()
         .0;
     // let sines_note: Sound = todo!();

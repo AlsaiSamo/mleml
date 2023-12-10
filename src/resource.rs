@@ -34,11 +34,24 @@ impl JsonArray {
         Self(json!([]))
     }
 
-    /// Convert vector of JSON values into JSON array, as long as no value is an array
+    /// Convert an ordered collection of JSON values into JSON array, as long as no value is an array
     /// or an object.
-    pub fn from_vec(items: Vec<JsonValue>) -> Option<Self> {
-        match items.iter().any(|x| !(x.is_array() | x.is_object())) {
-            true => Some(Self(items.into())),
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use serde_json::{json, Value};
+    /// # use mleml::resource::JsonArray;
+    /// let vec: Vec<Value> = vec![json!(5), json!("six")];
+    /// let conf: JsonArray = JsonArray::from_values(vec).expect("Vector contains an array or an object");
+    /// ```
+    pub fn from_values<I: AsRef<[JsonValue]>>(items: I) -> Option<Self> {
+        match items
+            .as_ref()
+            .iter()
+            .any(|x| !(x.is_array() | x.is_object()))
+        {
+            true => Some(Self(items.as_ref().into())),
             false => None,
         }
     }
@@ -167,8 +180,8 @@ pub type PremixedSound<'a> = &'a [(bool, &'a [Stereo<f32>])];
 
 /// Mixer combines multiple sounds into one, returning it together with unused sound pieces.
 pub trait Mixer<'a>: Resource {
-    /// Get mixer values.
-    fn get_config(&self) -> ResConfig;
+    /// Get mixer values as JSON array.
+    fn get_values(&self) -> ResConfig;
 
     /// Mix provided sound samples.
     ///

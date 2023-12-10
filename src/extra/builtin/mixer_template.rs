@@ -79,7 +79,7 @@ impl<'a> Resource for SimpleMixer<'a> {
 }
 
 impl<'a> Mixer<'a> for SimpleMixer<'a> {
-    fn get_config(&self) -> ResConfig {
+    fn get_values(&self) -> ResConfig {
         self.values.clone()
     }
 

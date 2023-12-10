@@ -14,7 +14,7 @@ fn main() {
         pitch: Some(256.0),
         velocity: 64,
     });
-    let conf = ResConfig::from_vec(
+    let conf = ResConfig::from_values(
         json!([
             4, false, 0, 0, 210, 511, 110, 127, 12, 192, 0, 140, 200, 260, 110, 30, 4, 192, 0, 0,
             210, 511, 110, 127, 4, 180, 0, 140, 200, 260, 110, 30, 4, 180
