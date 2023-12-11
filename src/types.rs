@@ -59,6 +59,7 @@ impl Sound {
     pub fn new(data: Box<[Stereo<f32>]>, sampling_rate: u32) -> Box<Sound> {
         let slice: Box<SliceWithHeader<u32, Stereo<f32>>> =
             slice_dst::SliceWithHeader::from_slice(sampling_rate, &data);
+        // SAFETY: Sound is a transparent wrapper around the same type that slice has.
         unsafe { Box::from_raw(Box::into_raw(slice) as *mut Sound) }
     }
 

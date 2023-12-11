@@ -104,7 +104,6 @@ pub struct OrderedSound(SliceWithHeader<usize, Stereo<OrderedFloat<f32>>>);
 /// Trait defined for `HashSet<Rc<OrderedSound>>` to allow using it to store [`Sound`] data.
 #[sealed]
 pub trait SetRcSound {
-    //TODO: safety
     /// Store [`Sound`] in the set like [`SetRc::wrap()`].
     ///
     /// Under the hood it stores [`OrderedSound`] and reinterprets it as `Sound`
@@ -141,6 +140,10 @@ pub trait SetRcSound {
 #[sealed]
 impl SetRcSound for HashSet<Rc<OrderedSound>> {
     fn wrap_sound(&mut self, value: Box<Sound>) -> Rc<Sound> {
+        // SAFETY: OrderedSound and Sound are transparent wrappers around
+        // SliceWithHeader<usize, T>, where T is a pair of f32 in one case and a
+        // 2x transparent wrapper around f32 in another, meaning that T has identical layout.
+        // SliceWithHeader has a defined layout, and thus both types have identical layout.
         unsafe {
             //convert to OrderedSound
             let new = Box::from_raw(Box::into_raw(value) as *mut OrderedSound);
