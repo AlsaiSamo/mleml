@@ -9,8 +9,6 @@ use slice_dst::SliceWithHeader;
 
 use crate::types::Sound;
 
-//TODO: tests!
-
 /// Trait for sets that contain [`Rc<T>`].
 ///
 /// This is used to cache or deduplicate data, for example resource states.
