@@ -424,29 +424,48 @@ pub trait Pipeline {
 
 #[sealed]
 impl Pipeline for Vec<Rc<dyn Mod>> {
-    // TODO: allow insertion of the item in a place where it would fix a broken pipeline.
-    // TODO: can if else chain be replaced to look nicer?
     fn insert_checked(&mut self, index: usize, item: Rc<dyn Mod>) -> Result<(), PipelineError> {
-        if item.input_type() != item.output_type() {
-            //A mod that changes data's type breaks or alters a valid pipeline
-            Err(PipelineError::InsertBreaksPipeline)
-        } else if index > self.len() {
-            return Err(PipelineError::IndexOutsideRange);
-        } else if self.is_empty() {
-            self.push(item);
-            return Ok(());
-        } else if (index == 0) && (item.input_type() == self[0].input_type()) {
-            self.insert(0, item);
-            return Ok(());
-        } else if (index == self.len()) && (item.input_type() == self.last().unwrap().output_type())
-        {
-            self.push(item);
-            return Ok(());
-        } else if item.output_type() == self[index].input_type() {
-            self.insert(index, item);
-            return Ok(());
-        } else {
-            Err(PipelineError::InsertBreaksPipeline)
+        match () {
+            // Outside of the range
+            _ if index > self.len() => Err(PipelineError::IndexOutsideRange),
+
+            // There are no mods that would restrict the available types
+            _ if self.is_empty() => {
+                self.push(item);
+                Ok(())
+            }
+
+            // The mod fits in the middle of the pipeline
+            _ if (index < self.len())
+                && (index > 0)
+                && (item.input_type() == self[index - 1].output_type())
+                && (item.output_type() == self[index].input_type()) =>
+            {
+                self.insert(index, item);
+                Ok(())
+            }
+
+            // If the mod did not fit in the middle, then it is being inserted at an
+            // edge of the pipeline, and so must preserve pipeline's I/O type
+            _ if item.input_type() != item.output_type() => {
+                Err(PipelineError::InsertBreaksPipeline)
+            }
+
+            // Mod is inserted at the start
+            _ if (index == 0) == (item.input_type() == self[0].input_type()) => {
+                self.insert(0, item);
+                Ok(())
+            }
+
+            // Mod is inserted at the end
+            _ if (index == self.len())
+                && (item.input_type() == self.last().unwrap().output_type()) =>
+            {
+                self.push(item);
+                Ok(())
+            }
+
+            _ => Err(PipelineError::InsertBreaksPipeline),
         }
     }
 
