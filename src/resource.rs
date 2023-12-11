@@ -116,7 +116,8 @@ impl JsonArray {
     }
 
     /// Push `item` into the array as long as the item is not
-    /// an [`Array`][serde_json::Value::Array] or an [`Object`][serde_json::Value::Object].
+    /// an [`Array`][serde_json::Value::Array] or an [`Object`][serde_json::Value::Object] and
+    /// returns `Some(())` to indicate success, or `None` to indicate failure.
     ///
     /// # Examples
     ///
@@ -161,10 +162,11 @@ impl JsonArray {
     // Mention that it will return how many elements were inserted and whether it failed or not
     /// Clones and pushes each item from `items` into the array,
     /// checking that they are not an [`Array`][serde_json::Value::Array]
-    /// or an [`Object`][serde_json::Value::Object].
+    /// or an [`Object`][serde_json::Value::Object]. Returns the number of items pushed.
     ///
-    /// Returns number of items pushed. Returns `Err` early if an `Array` or an `Object`
-    /// is encountered, and `Ok` if all values were pushed.
+    /// # Errors
+    ///
+    /// If an item turns out to be an `Array` or `Object`, an `Err` is returned.
     ///
     /// See [`Vec::extend_from_slice()`].
     pub fn extend_from_slice<T>(&mut self, items: T) -> Result<usize, usize>
@@ -230,7 +232,6 @@ pub enum ConfigError {
 pub struct StringError(pub String);
 
 /// Base trait for any resource.
-//TODO: change description to be like the name?
 pub trait Resource {
     ///Resource's original name.
     fn orig_name(&self) -> &str;
@@ -328,9 +329,7 @@ impl ModData {
         matches!(self, Self::Sound(..))
     }
 
-    //TODO: write docstrings (not a priority)
-    #[allow(missing_docs)]
-    pub fn as_string(&self) -> Option<&String> {
+    /// If the value is a String, returns it, otherwise returns None.
         if let Self::String(v) = self {
             Some(v)
         } else {
@@ -338,7 +337,7 @@ impl ModData {
         }
     }
 
-    #[allow(missing_docs)]
+    /// If the value is a Note, returns it, otherwise returns None.
     pub fn as_note(&self) -> Option<&Note> {
         if let Self::Note(v) = self {
             Some(v)
@@ -347,7 +346,7 @@ impl ModData {
         }
     }
 
-    #[allow(missing_docs)]
+    /// If the value is a ReadyNote, returns it, otherwise returns None.
     pub fn as_ready_note(&self) -> Option<&ReadyNote> {
         if let Self::ReadyNote(v) = self {
             Some(v)
@@ -356,7 +355,7 @@ impl ModData {
         }
     }
 
-    #[allow(missing_docs)]
+    /// If the value is a Sound, returns it, otherwise returns None.
     pub fn as_sound(&self) -> Option<&Sound> {
         if let Self::Sound(v) = self {
             Some(v)
@@ -383,7 +382,7 @@ pub trait Mod: Resource {
     fn output_type(&self) -> Discriminant<ModData>;
 }
 
-/// Error type for pipeline
+/// Error type for pipeline.
 #[derive(Error, Debug)]
 pub enum PipelineError {
     /// Index outside range
@@ -394,7 +393,7 @@ pub enum PipelineError {
     #[error("pipeline broken at mod {0}")]
     PipelineBroken(usize),
 
-    //TODO: add information (allowed input and output, position)
+    //TODO: should additional info be given? (allowed input and output, position)
     /// Inserting the mod will break the pipeline
     #[error("inserting mod will break the pipeline")]
     InsertBreaksPipeline,
@@ -403,22 +402,23 @@ pub enum PipelineError {
 /// Trait that extends Vec<Rc<dyn Mod>> with helpful functions
 #[sealed]
 pub trait Pipeline {
-    /// Insert a mod into pipeline while not altering how it transforms types and
-    /// keeping it valid.
+    /// Insert a [`Mod`] into the pipeline, making sure that it does not break the pipeline or
+    /// alter pipeline's input and output types.
+    //TODO: usage example (will require multiple mods)
     fn insert_checked(&mut self, index: usize, item: Rc<dyn Mod>) -> Result<(), PipelineError>;
 
-    /// Check that the pipeline is valid (each mod produces type that the next mod accepts)
+    /// Check that the pipeline is valid (each mod produces the type that the next mod accepts).
     fn is_valid(&self) -> Result<(), PipelineError>;
 
-    /// Get all type changes that happen in the pipeline
+    /// Get all type changes that happen in the pipeline.
     fn type_flow(&self) -> Result<Vec<Discriminant<ModData>>, PipelineError>;
 
     //TODO: get indices of mods that change types
 
-    /// Get input type of the first mod in the pipeline
+    /// Get input type of the first mod in the pipeline.
     fn input_type(&self) -> Option<Discriminant<ModData>>;
 
-    /// Get output typee of the last mod in the pipeline
+    /// Get output typee of the last mod in the pipeline.
     fn output_type(&self) -> Option<Discriminant<ModData>>;
 }
 

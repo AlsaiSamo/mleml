@@ -62,6 +62,17 @@ impl<'a> ConfigBuilder<'a> {
     /// The function finishes when the configuration is finished building, all items
     /// were used, or an error occurs.
     ///
+    /// # Errors
+    ///
+    /// If the configuration had already been built,
+    /// [`ValueOutsideSchema`][crate::extra::config_builder::ConfigBuilderError::ValueOutsideSchema]
+    /// is returned.
+    ///
+    /// If an item from the source has an incorrect type,
+    /// [`TypeMismatch`][crate::extra::config_builder::ConfigBuilderError::TypeMismatch]
+    /// is returned. Everything before this item will remain in the configuration.
+    ///
+    ///
     /// # Examples
     ///
     /// ```
@@ -117,6 +128,16 @@ impl<'a> ConfigBuilder<'a> {
 
     /// If the configuration is unfinished, checks and appends one item to it.
     /// `Ok(true)` means that the config is fully built.
+    ///
+    /// # Errors
+    ///
+    /// If the configuration had already been built,
+    /// [`ValueOutsideSchema`][crate::extra::config_builder::ConfigBuilderError::ValueOutsideSchema]
+    /// is returned.
+    ///
+    /// If the inserted item has an incorrect type,
+    /// [`TypeMismatch`][crate::extra::config_builder::ConfigBuilderError::TypeMismatch]
+    /// is returned.
     ///
     /// # Examples
     ///
