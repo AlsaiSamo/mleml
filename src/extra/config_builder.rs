@@ -1,13 +1,16 @@
-//! Builder for configurations that uses a schema.
+//! Builder for configurations, represented as flat [JSON arrays][crate::resource::JsonArray],
+//! that uses a schema.
+
 use std::mem::{discriminant, Discriminant};
 
 use thiserror::Error;
 
 use crate::resource::{JsonValue, ResConfig};
 
-/// Errors that can be encountered while building configuration.
+/// Errors that [`ConfigBuilder`] can produce.
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum ConfigBuilderError {
+    //TODO: change from displaying discriminant to displaying a type
     /// Provided type does not match the type defined in the schema.
     #[error("type mismatch at {0}: expected {1:?}, got {2:?}")]
     TypeMismatch(usize, Discriminant<JsonValue>, Discriminant<JsonValue>),
@@ -17,23 +20,23 @@ pub enum ConfigBuilderError {
     ValueOutsideSchema,
 }
 
-/// State of configuration builder in which the config is not fully built yet.
+/// State of [`ConfigBuilder`] in which the config is not fully built yet.
 #[derive(Debug)]
 pub struct ConfBuilding<'a> {
-    ///Schema of the module.
+    /// Schema against which the configuration is being built.
     schema: &'a ResConfig,
 
-    ///Configuration that is being built.
+    /// Configuration that is being built.
     config: ResConfig,
 }
 
 /// Configuration builder.
 ///
-/// Validates all provided values and their count against the schema, comparing
-/// the types.
+/// Validates all provided values and their count against the schema, making sure
+/// that the types match.
 #[derive(Debug)]
 pub enum ConfigBuilder<'a> {
-    /// Configuration is still building.
+    /// Configuration is still being built.
     Builder(ConfBuilding<'a>),
 
     /// Configuration is fully built and can be used.
@@ -41,7 +44,7 @@ pub enum ConfigBuilder<'a> {
 }
 
 impl<'a> ConfigBuilder<'a> {
-    /// Create new config builder from given schema.
+    /// Create new [`ConfigBuilder`] from given schema.
     pub fn new(schema: &'a ResConfig) -> ConfigBuilder {
         if schema.as_slice().is_empty() {
             return ConfigBuilder::Config(ResConfig::new());
@@ -53,10 +56,36 @@ impl<'a> ConfigBuilder<'a> {
         }
     }
 
-    /// Append items from a given source to the configuration that is being built.
+    /// Append items from a given source of JSON values to the configuration that is being built
+    /// and returns the number of appended values.
     ///
     /// The function finishes when the configuration is finished building, all items
     /// were used, or an error occurs.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use serde_json::{json, Value};
+    /// # use mleml::extra::config_builder::{ConfigBuilder, ConfigBuilderError};
+    /// # use mleml::resource::{ResConfig, JsonArray};
+    /// # fn main() -> Result<(), ConfigBuilderError> {
+    /// let schema: ResConfig = ResConfig::from_value(json!([5, "six"])).expect("failed to create resource config");
+    /// let mut builder: ConfigBuilder = ConfigBuilder::new(&schema);
+    /// let source: JsonArray = JsonArray::from_value(json!([12, "lime"])).expect("failed to create JSON array");
+    ///
+    /// // Number of values that were taken from the source
+    /// let taken: usize = builder.inject(source.as_slice())?;
+    /// assert_eq!(taken, 2);
+    ///
+    /// // Finished config is taken from the builder
+    /// let config: ResConfig = match builder {
+    ///     ConfigBuilder::Builder(..) => unreachable!(),
+    ///     ConfigBuilder::Config(conf) => conf
+    /// };
+    ///
+    /// # Ok(())
+    /// # }
+    /// ```
     //TODO: current approach silently discards values that did not fit but
     //returns error on attempt to append to a finished config.
     //Should it return error on extra values always? Or should it return Ok(0)?
@@ -76,8 +105,7 @@ impl<'a> ConfigBuilder<'a> {
                 false => {
                     count += 1;
                     match build.append(val.unwrap())? {
-                        //While this is a copy, it should not hurt too much.
-                        //TODO: see if this can be improved
+                        //TODO: figure out if this is expensive
                         true => *self = ConfigBuilder::Config(build.config.to_owned()),
                         false => {}
                     }
@@ -85,6 +113,35 @@ impl<'a> ConfigBuilder<'a> {
             }
         }
         Ok(count)
+    }
+
+    /// If the configuration is unfinished, checks and appends one item to it.
+    /// `Ok(true)` means that the config is fully built.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use serde_json::{json, Value};
+    /// # use mleml::extra::config_builder::{ConfigBuilder, ConfigBuilderError};
+    /// # use mleml::resource::{ResConfig, JsonArray};
+    /// # fn main() -> Result<(), ConfigBuilderError> {
+    /// let schema: ResConfig = ResConfig::from_value(json!([5, "six"])).expect("failed to create resource config");
+    /// let mut builder: ConfigBuilder = ConfigBuilder::new(&schema);
+    /// let number: Value = json!(31);
+    /// let string: Value = json!("many");
+    ///
+    /// let is_finished: bool = builder.append(&number)?;
+    /// assert_eq!(is_finished, false);
+    /// let is_finished: bool = builder.append(&string)?;
+    /// assert_eq!(is_finished, true);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn append(&mut self, value: &JsonValue) -> Result<bool, ConfigBuilderError> {
+        match self {
+            ConfigBuilder::Builder(builder) => builder.append(value),
+            ConfigBuilder::Config(_) => Err(ConfigBuilderError::ValueOutsideSchema),
+        }
     }
 
     /// Returns `true` if the config builder is [`Builder`].
@@ -105,8 +162,6 @@ impl<'a> ConfigBuilder<'a> {
 }
 
 impl<'a> ConfBuilding<'a> {
-    /// Checks and appends one item to the unfinished configuration. Ok(true)
-    /// signals that the config is full.
     fn append(&mut self, value: &JsonValue) -> Result<bool, ConfigBuilderError> {
         if self.schema.as_slice().len() == self.config.as_slice().len() {
             return Err(ConfigBuilderError::ValueOutsideSchema);
