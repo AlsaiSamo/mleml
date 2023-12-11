@@ -158,8 +158,8 @@ impl Channel for SimpleChannel {
 
         for i in 0..self.mods.len() {
             if self.mods[i].id() == "BUILTIN_CONVERT_NOTE" {
-                let cccc = config.get().get(0).unwrap().as_f64().unwrap();
-                let tick_len = config.get().get(1).unwrap().as_f64().unwrap();
+                let cccc = config.as_ref().get(0).unwrap().as_f64().unwrap();
+                let tick_len = config.as_ref().get(1).unwrap().as_f64().unwrap();
                 let conf = JsonArray::from_value(json!([
                     cccc,
                     tick_len,

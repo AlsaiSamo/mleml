@@ -13,11 +13,11 @@ use std::{
 };
 use thiserror::Error;
 
-#[allow(missing_docs)]
 pub(crate) type JsonValue = serde_json::Value;
 
 ///Flat JSON array of arbitrary values.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[repr(transparent)]
 pub struct JsonArray(JsonValue);
 
 impl Default for JsonArray {
@@ -27,9 +27,14 @@ impl Default for JsonArray {
 }
 
 impl JsonArray {
-    //TODO: as_mut_slice?
-
-    /// Create new JSON array.
+    /// Construct a new, empty JSON array.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use mleml::resource::JsonArray;
+    /// let mut conf: JsonArray = JsonArray::new();
+    /// ```
     pub fn new() -> Self {
         Self(json!([]))
     }
@@ -58,6 +63,16 @@ impl JsonArray {
 
     /// Wrap JSON value as JsonArray as long as it is an array with no nested arrays
     /// or objects.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use serde_json::{json, Value};
+    /// # use mleml::resource::JsonArray;
+    /// let val: Value = json!([5, "six"]);
+    /// let conf: JsonArray = JsonArray::from_value(val).expect("JSON value was not a flat array");
+    /// ```
+    //TODO: accept borrowed and to_owned() them
     pub fn from_value(item: JsonValue) -> Option<Self> {
         match item
             .as_array()?
@@ -67,16 +82,6 @@ impl JsonArray {
             true => Some(Self(item)),
             false => None,
         }
-    }
-
-    /// Returns a reference to the inner JSON value.
-    pub fn get(&self) -> &JsonValue {
-        &self.0
-    }
-
-    /// Returns a mutable reference to the inner JSON value.
-    pub fn get_mut(&mut self) -> &mut JsonValue {
-        &mut self.0
     }
 
     /// Returns a slice of contained JSON values.
@@ -95,20 +100,99 @@ impl JsonArray {
         self.len() == 0
     }
 
-    /// Serialize into byte vector.
+    /// Serialize into [`Vec<u8>`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use serde_json::{json, Value};
+    /// # use mleml::resource::JsonArray;
+    /// let conf: JsonArray = JsonArray::from_value(json!([5, "six"])).
+    /// expect("JSON value was not a flat array");
+    /// assert_eq!(conf.as_byte_vec(), r#"[5,"six"]"#.as_bytes())
+    /// ```
     pub fn as_byte_vec(&self) -> Vec<u8> {
         to_vec(&self.0).unwrap()
     }
 
-    /// Push item into the array as long as the item is not an array or an object.
+    /// Push `item` into the array as long as the item is not
+    /// an [`Array`][serde_json::Value::Array] or an [`Object`][serde_json::Value::Object].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use serde_json::json;
+    /// # use mleml::resource::JsonArray;
+    /// let mut conf: JsonArray = JsonArray::new();
+    /// conf.push(json!(5)).expect("Somehow 5 was not pushed in");
+    /// assert_eq!(conf.as_slice()[0].as_i64(), Some(5));
+    /// ```
     pub fn push(&mut self, item: JsonValue) -> Option<()> {
         match item.is_array() | item.is_object() {
             true => None,
-            _ => {
+            false => {
                 self.0.as_array_mut().unwrap().push(item);
                 Some(())
             }
         }
+    }
+
+    /// Calls [`Vec::pop()`].
+    pub fn pop(&mut self) -> Option<JsonValue> {
+        self.0.as_array_mut().unwrap().pop()
+    }
+
+    /// Checks that `element` is not [`Array`][serde_json::Value::Array] or
+    /// [`Object`][serde_json::Value::Object] and calls [`Vec::insert()`],
+    /// returning `Some(())`, otherwise returns `None`.
+    pub fn insert(&mut self, index: usize, element: JsonValue) -> Option<()> {
+        if element.is_array() | element.is_object() {
+            return None;
+        }
+        self.0.as_array_mut().unwrap().insert(index, element);
+        Some(())
+    }
+
+    /// Calls [`Vec::remove()`].
+    pub fn remove(&mut self, index: usize) -> JsonValue {
+        self.0.as_array_mut().unwrap().remove(index)
+    }
+
+    // Mention that it will return how many elements were inserted and whether it failed or not
+    /// Clones and pushes each item from `items` into the array,
+    /// checking that they are not an [`Array`][serde_json::Value::Array]
+    /// or an [`Object`][serde_json::Value::Object].
+    ///
+    /// Returns number of items pushed. Returns `Err` early if an `Array` or an `Object`
+    /// is encountered, and `Ok` if all values were pushed.
+    ///
+    /// See [`Vec::extend_from_slice()`].
+    pub fn extend_from_slice<T>(&mut self, items: T) -> Result<usize, usize>
+    where
+        T: AsRef<[JsonValue]>,
+    {
+        let target = self.0.as_array_mut().unwrap();
+        let source = items.as_ref().iter();
+        let source_len = source.len().clone();
+        for (index, item) in source.enumerate() {
+            if item.is_array() | item.is_object() {
+                return Err(index);
+            } else {
+                target.push(item.clone())
+            }
+        }
+        Ok(source_len)
+    }
+
+    /// Consumes the `JsonArray` and returns inner [`Value`][serde_json::Value].
+    pub fn into_inner(self) -> JsonValue {
+        self.0
+    }
+}
+
+impl AsRef<JsonValue> for JsonArray {
+    fn as_ref(&self) -> &JsonValue {
+        &self.0
     }
 }
 
