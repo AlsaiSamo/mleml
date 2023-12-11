@@ -1,0 +1,14 @@
+#+title: Changelog
+
+* Changelog
+** 0.2.0
++ Better documentation
++ Better test coverage
+  Some places are left untested - builtin resources and =Pipeline= functions (because there are not enough mods for the tests.)
++ Added =Chip= trait
+  =Chip= works like multiple sound-producing channels and a mixer. This trait primarily helps with supporting chip emulators.
++ Added storage for sound data
++ Reworked =Sound= type and some functions
+  Previously, =Sound= was boxed, making =Rc<Sound>= have an unnecessary layer of indirection.
++ Bugfixes
+  Code definitely did not work before; it may work now.

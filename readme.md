@@ -1,13 +1,13 @@
 
 # Table of Contents
 
-1.  [Introduction](#org11597b7)
-    1.  [What&rsquo;s included](#orga91a666)
-    2.  [TODOs](#org739357c)
+1.  [Introduction](#org0931073)
+    1.  [What&rsquo;s included](#org562ec76)
+    2.  [TODOs](#orgf150e8a)
 
 
 
-<a id="org11597b7"></a>
+<a id="org0931073"></a>
 
 # Introduction
 
@@ -20,7 +20,7 @@ It can be used for:
 3.  Resource-providing libraries
 
 
-<a id="orga91a666"></a>
+<a id="org562ec76"></a>
 
 ## What&rsquo;s included
 
@@ -30,12 +30,11 @@ It can be used for:
     These can be used as they are or as examples.
 
 
-<a id="org739357c"></a>
+<a id="orgf150e8a"></a>
 
 ## TODOs
 
--   [ ] Tests
--   [ ] Better usage examples
 -   [ ] Resources should provide schema
 -   [ ] Provide aid with config validation
+-   [ ] More builtins
 

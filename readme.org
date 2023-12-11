@@ -15,7 +15,6 @@ It can be used for:
 + Some builtin resources
   These can be used as they are or as examples.
 ** TODOs
-+ [ ] Tests
-+ [ ] Better usage examples
 + [ ] Resources should provide schema
 + [ ] Provide aid with config validation
++ [ ] More builtins
