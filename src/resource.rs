@@ -1,4 +1,3 @@
-#![warn(missing_docs)]
 //! This module provides Mod and Mixer traits.
 
 use crate::types::{Note, ReadyNote, Sound};
@@ -330,8 +329,9 @@ impl ModData {
     }
 
     /// If the value is a String, returns it, otherwise returns None.
+    pub fn as_string(&self) -> Option<&str> {
         if let Self::String(v) = self {
-            Some(v)
+            Some(v.as_str())
         } else {
             None
         }

@@ -118,7 +118,7 @@ impl<'a> ConfigBuilder<'a> {
                     match build.append(val.unwrap())? {
                         //TODO: figure out if this is expensive
                         true => *self = ConfigBuilder::Config(build.config.to_owned()),
-                        false => {}
+                        false => continue,
                     }
                 }
             }

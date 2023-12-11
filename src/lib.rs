@@ -1,8 +1,3 @@
-#![warn(missing_docs)]
-#![feature(ptr_from_ref)]
-#![cfg_attr(feature = "extra", feature(hash_set_entry))]
-//TODO: for all docs, make links to items
-
 //! A library for working with music written in MML (music macro language) fashion.
 //!
 //! It strives to be flexible enough to:
@@ -41,6 +36,12 @@
 //! to the resulting music, and leftover pieces are reused in the next invocation.
 //! On all invocations of a channel or a mixer, their output state is reused,
 //! like mixer's leftover sounds.
+
+#![feature(ptr_from_ref)]
+#![cfg_attr(feature = "extra", feature(hash_set_entry))]
+#![warn(missing_docs)]
+// #![feature(rustdoc_missing_doc_code_examples)]
+// #![warn(rustdoc::missing_doc_code_examples)]
 
 pub mod resource;
 pub mod types;
