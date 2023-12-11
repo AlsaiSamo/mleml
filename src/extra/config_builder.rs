@@ -260,7 +260,7 @@ mod tests {
     }
 
     #[test]
-    fn append_to_config_building_works() {
+    fn append_to_config_builder_works() {
         let schema = example_json_array();
         let mut conf_building = ConfBuilding {
             schema: &schema,
@@ -277,21 +277,17 @@ mod tests {
     }
 
     #[test]
-    fn append_to_config_building_extra() {
+    fn append_to_config_builder_extra() {
         let schema = example_json_array();
-        let mut conf_building = ConfBuilding {
-            schema: &schema,
-            config: JsonArray::new(),
-        };
+        let mut conf_builder = ConfigBuilder::new(&schema);
+
         //Correct type is Number, and this is not the last element
-        assert!(conf_building.append(&json!(30.3)).is_ok_and(|x| !x));
+        assert!(conf_builder.append(&json!(30.3)).is_ok_and(|x| !x));
         //Correct type is String, and this is not the last element
-        assert!(conf_building
-            .append(&json!("Very silent"))
-            .is_ok_and(|x| !x));
+        assert!(conf_builder.append(&json!("Very silent")).is_ok_and(|x| !x));
         //Correct type is Bool, and this is the last element of the config
-        assert!(conf_building.append(&json!(false)).is_ok_and(|x| x));
-        assert!(conf_building
+        assert!(conf_builder.append(&json!(false)).is_ok_and(|x| x));
+        assert!(conf_builder
             .append(&json!("extra"))
             .is_err_and(|x| x == ConfigBuilderError::ValueOutsideSchema));
     }
@@ -299,13 +295,11 @@ mod tests {
     #[test]
     fn append_to_config_building_type_mismatch() {
         let schema = example_json_array();
-        let mut conf_building = ConfBuilding {
-            schema: &schema,
-            config: JsonArray::new(),
-        };
+        let mut conf_builder = ConfigBuilder::new(&schema);
+
         let given_disc = discriminant(&json!("a"));
         let expected_disc = discriminant(&json!(8));
-        assert!(conf_building
+        assert!(conf_builder
             .append(&json!("teehee"))
             .is_err_and(|x| x == ConfigBuilderError::TypeMismatch(0, expected_disc, given_disc)));
     }

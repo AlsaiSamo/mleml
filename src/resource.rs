@@ -53,10 +53,10 @@ impl JsonArray {
         match items
             .as_ref()
             .iter()
-            .any(|x| !(x.is_array() | x.is_object()))
+            .any(|x| (x.is_array() | x.is_object()))
         {
-            true => Some(Self(items.as_ref().into())),
-            false => None,
+            false => Some(Self(items.as_ref().into())),
+            true => None,
         }
     }
 
@@ -76,10 +76,10 @@ impl JsonArray {
         match item
             .as_array()?
             .iter()
-            .any(|x| !(x.is_array() | x.is_object()))
+            .any(|x| (x.is_array() | x.is_object()))
         {
-            true => Some(Self(item)),
-            false => None,
+            false => Some(Self(item)),
+            true => None,
         }
     }
 
@@ -550,4 +550,110 @@ pub trait Chip: Resource {
 
     /// Reset chip's state
     fn reset(&mut self);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn good_data() -> JsonValue {
+        json!([5, 0, "munching", true])
+    }
+
+    fn bad_data() -> JsonValue {
+        json!([5, 3, ["bad"], {"no": false}])
+    }
+
+    fn empty_data() -> JsonValue {
+        json!([])
+    }
+
+    #[test]
+    fn json_array_from_values() {
+        let arr = JsonArray::from_values(good_data().as_array().unwrap()).unwrap();
+        assert_eq!(arr.as_byte_vec(), r#"[5,0,"munching",true]"#.as_bytes())
+    }
+
+    #[test]
+    #[should_panic]
+    fn json_array_from_values_bad() {
+        let arr = JsonArray::from_values(bad_data().as_array().unwrap()).unwrap();
+        // Will not execute
+        assert_eq!(
+            arr.as_byte_vec(),
+            r#"[5,3,["bad"],{"no":false}]"#.as_bytes()
+        );
+    }
+
+    #[test]
+    fn json_array_from_values_empty() {
+        let arr = JsonArray::from_values(empty_data().as_array().unwrap()).unwrap();
+        assert_eq!(arr.as_byte_vec(), r#"[]"#.as_bytes())
+    }
+
+    #[test]
+    fn json_array_from_value() {
+        let arr = JsonArray::from_value(good_data()).unwrap();
+        assert_eq!(arr.as_byte_vec(), r#"[5,0,"munching",true]"#.as_bytes())
+    }
+
+    #[test]
+    #[should_panic]
+    fn json_array_from_value_bad() {
+        let arr = JsonArray::from_value(bad_data()).unwrap();
+        // Will not execute
+        assert_eq!(
+            arr.as_byte_vec(),
+            r#"[5,3,["bad"],{"no":false}]"#.as_bytes()
+        );
+    }
+
+    #[test]
+    fn json_array_from_value_empty() {
+        let arr = JsonArray::from_value(empty_data()).unwrap();
+        assert_eq!(arr.as_byte_vec(), r#"[]"#.as_bytes())
+    }
+
+    #[test]
+    fn json_array_insert() {
+        let mut arr = JsonArray::new();
+        arr.insert(0, json!(5)).unwrap();
+        assert_eq!(arr.as_byte_vec(), "[5]".as_bytes());
+
+        arr.insert(0, json!("five")).unwrap();
+        assert_eq!(arr.as_byte_vec(), r#"["five",5]"#.as_bytes())
+    }
+
+    #[test]
+    #[should_panic]
+    fn json_array_insert_bad() {
+        let mut arr = JsonArray::new();
+        arr.insert(0, json!("five")).unwrap();
+        assert_eq!(arr.as_byte_vec(), r#"["five"]"#.as_bytes());
+
+        arr.insert(1, json!([5])).unwrap();
+        // Will not execute
+        assert_eq!(arr.as_byte_vec(), r#"["five",[5]]"#.as_bytes())
+    }
+
+    #[test]
+    fn json_array_extend_from_slice() {
+        let mut arr = JsonArray::new();
+        arr.extend_from_slice(good_data().as_array().unwrap())
+            .unwrap();
+        assert_eq!(arr.as_byte_vec(), r#"[5,0,"munching",true]"#.as_bytes())
+    }
+
+    #[test]
+    #[should_panic]
+    fn json_array_extend_from_slice_bad() {
+        let mut arr = JsonArray::new();
+        arr.extend_from_slice(bad_data().as_array().unwrap())
+            .unwrap();
+        // Will not execute
+        assert_eq!(
+            arr.as_byte_vec(),
+            r#"[5,3,["bad"],{"no":false}]"#.as_bytes()
+        );
+    }
 }
