@@ -546,7 +546,7 @@ pub trait Chip: Resource {
     ) -> Result<(Box<Sound>, Box<ResState>), StringError>;
 
     /// Get the last sound bit - up until `ticks` after last keyoff event.
-    fn flush(ticks: usize) -> Result<(Box<Sound>, Box<ResState>), StringError>;
+    fn flush(&mut self, ticks: usize) -> Result<(Box<Sound>, Box<ResState>), StringError>;
 
     /// Reset chip's state
     fn reset(&mut self);

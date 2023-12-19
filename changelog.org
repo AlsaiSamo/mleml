@@ -1,6 +1,7 @@
-#+title: Changelog
-
 * Changelog
+** 0.2.1
++ Fixed =Chip::flush()= (it is now a proper method)
++ This fix also now makes =Chip= object safe, as it should have been
 ** 0.2.0
 + Better documentation
 + Better test coverage
